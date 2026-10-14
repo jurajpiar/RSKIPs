@@ -90,6 +90,12 @@ The refund follows the version-2 rule: it is built to the refund output, which i
 flag is set, by the existing rejection-release path (`generateRejectionRelease`), for the deposit
 less the release fee, from the deposit's own UTXOs. The transaction is marked processed.
 
+If the release cannot be built (the release builder returns anything but success, for instance
+`COULD_NOT_ADJUST_DOWNWARDS` when the fee exceeds the deposit), the Bridge credits the destination
+instead, exactly as it would for a version-2 payload: `pegin_btc` is emitted and the transaction is
+marked processed. No release is attempted later. A protocol that reads the flag can recognise this
+case on chain, since it is the only way a flagged peg-in is credited to a destination without code.
+
 ### Events
 
 `rejected_pegin` (RSKIP181) gains one reason value, appended to the existing ones:
@@ -127,7 +133,8 @@ having silently accepted a payload whose meaning it did not know.
 
 This change is a hard fork and all full nodes must be updated.
 
-Versions 0, 1 and 2 are untouched. Nodes before activation reject a version-3 payload as an invalid
+Legacy peg-ins (no instructions; protocol version 0 inside rskj) and versions 1 and 2 are
+untouched. Nodes before activation reject a version-3 payload as an invalid
 version, which under RSKIP379 means a refund to the sender-derived address or `unrefundable_pegin`;
 so wallets must not emit version 3 before the activation height.
 
@@ -145,9 +152,20 @@ not recognise only for version-3 peg-ins.
 - **Refund address substitution.** The refund output is chosen by whoever builds the `OP_RETURN`, as
   in version 2; a user who does not build their own payload must verify it, as they must verify the
   destination. Unchanged by this RSKIP.
-- **Refund size and fees.** As in version 2: the net output can be dust or unbuildable at extreme
-  fee-per-kb settings, in which case the builder refuses and the Bridge logs and panics, as for any
-  rejection release today.
+- **Refund size and fees.** Every rejection release today, for any protocol version, is built from
+  the deposit less `feePerKb` times its size; when the builder cannot make the output (dust, or the
+  fee exceeds the deposit, `COULD_NOT_ADJUST_DOWNWARDS`), the Bridge logs, panics and returns, and
+  since RSKIP459 still marks the transaction processed. The funds stay with the federation, no event
+  records that anyone is owed them, and nothing can be done afterwards. This is an existing property
+  of rejection releases, observed on regtest by voting `feePerKb` to its maximum against a 600,000-sat
+  deposit (`rejected_pegin` with no `release_requested`). Today it is reached only by malformed or
+  unusual peg-ins; with `REQUIRE_CODE` every unserved deposit is a refund, so the path becomes
+  reachable by ordinary users. For perspective, mainnet's `feePerKb` has been voted between 8,000
+  sat/kB (2025 to date) and 500,000 (genesis), with a 2023 peak of 240,000, against a maximum of
+  5,000,000; a ~300-vbyte refund of the 500,000-sat minimum peg-in cost 0.5 %, 14 % and 30 % of the
+  deposit at those values and becomes unbuildable near 1,700,000 sat/kB, inside the cap. This RSKIP
+  therefore credits instead of losing (Specification, Evaluation). A client should still keep deposits well above the Bridge minimum, since a credit to
+  a code-less destination is not what a flagged payload asked for.
 - **Cost to the federation.** Each refund is a federation-signed Bitcoin transaction paid from the
   deposit. A protocol whose intents are often unserved generates refunds at its users' expense, not
   the federation's.
@@ -166,6 +184,9 @@ not recognise only for version-3 peg-ins.
   refund types, each output accepted by Bitcoin Core as standard.
 - Timing: code deployed in the same Rootstock block before the registration transaction leads to a
   credit; deployed in the block after leads to a refund.
+- Unbuildable refund: with `feePerKb` set so that the release fee exceeds the deposit, a flagged
+  peg-in to a code-less destination is credited (`pegin_btc`), no `release_requested` is emitted,
+  and the transaction is marked processed.
 - Flag clear: a version-3 peg-in with flags `00` to a code-less destination is credited.
 - Precompile destination: credited.
 - Pre-activation: a version-3 payload is treated as an invalid version.
@@ -173,6 +194,9 @@ not recognise only for version-3 peg-ins.
 
 ## Open questions
 
+- Whether an unbuildable refund should credit (as specified) or be recorded as a loss with a new
+  `unrefundable_pegin` reason. Crediting keeps the funds on Rootstock at a destination the user
+  named; the loss variant keeps the flag's rule exact and matches what every other version does.
 - Whether a delegated account under a future account-abstraction scheme should count as having
   code. Not reachable at the time of writing.
 - Whether the check should accept a destination that had code at any earlier block, rather than at
