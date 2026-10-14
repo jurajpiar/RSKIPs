@@ -90,7 +90,7 @@ The refund follows the version-2 rule: it is built to the refund output, which i
 flag is set, by the existing rejection-release path (`generateRejectionRelease`), for the deposit
 less the release fee, from the deposit's own UTXOs. The transaction is marked processed.
 
-If the release cannot be built (the release builder returns anything but success, for instance
+*Proposed, not yet implemented or tested on the reference branch (2026-10-14); what the Bridge does today in this case is observed, the fall-through to a credit is not.* If the release cannot be built (the release builder returns anything but success, for instance
 `COULD_NOT_ADJUST_DOWNWARDS` when the fee exceeds the deposit), the Bridge credits the destination
 instead, exactly as it would for a version-2 payload: `pegin_btc` is emitted and the transaction is
 marked processed. No release is attempted later. A protocol that reads the flag can recognise this
