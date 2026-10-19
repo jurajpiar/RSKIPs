@@ -166,6 +166,7 @@ not recognise only for version-3 peg-ins.
   deposit at those values and becomes unbuildable near 1,700,000 sat/kB, inside the cap. This RSKIP
   therefore credits instead of losing (Specification, Evaluation). A client should still keep deposits well above the Bridge minimum, since a credit to
   a code-less destination is not what a flagged payload asked for.
+- **The refund waits like a pegout, and must.** The rejection release is queued with the pegouts and released after `rsk2BtcMinimumAcceptableConfirmations` ([source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L3260-L3261), [source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L1589-L1611)). A refund burns nothing, but its verdict depends on the destination's code in the registering block; a reorg of that block can replay the registration where code now exists and credit the deposit instead. A refund already signed would then be paid twice. The shared wait is what prevents that, and this RSKIP does not shorten it.
 - **Cost to the federation.** Each refund is a federation-signed Bitcoin transaction paid from the
   deposit. A protocol whose intents are often unserved generates refunds at its users' expense, not
   the federation's.
