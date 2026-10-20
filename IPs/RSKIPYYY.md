@@ -162,8 +162,8 @@ not recognise only for version-3 peg-ins.
   unusual peg-ins; with `REQUIRE_CODE` every unserved deposit is a refund, so the path becomes
   reachable by ordinary users. For perspective, mainnet's `feePerKb` has been voted between 8,000
   sat/kB (2025 to date) and 500,000 (genesis), with a 2023 peak of 240,000, against a maximum of
-  5,000,000; a ~300-vbyte refund of the 500,000-sat minimum peg-in cost 0.5 %, 14 % and 30 % of the
-  deposit at those values and becomes unbuildable near 1,700,000 sat/kB, inside the cap. This RSKIP
+  5,000,000; the 329-vbyte refund of the 500,000-sat minimum peg-in (one input of the current 5-of-9 P2SH-P2WSH federation, one P2PKH output, sized by the Bridge's own estimator) cost 0.5 %, 16 % and 33 % of the
+  deposit at those values and becomes unbuildable near 1,520,000 sat/kB, inside the cap. This RSKIP
   therefore credits instead of losing (Specification, Evaluation). A client should still keep deposits well above the Bridge minimum, since a credit to
   a code-less destination is not what a flagged payload asked for.
 - **The refund waits like a pegout, and must.** The rejection release is queued with the pegouts and released after `rsk2BtcMinimumAcceptableConfirmations` ([source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L3260-L3261), [source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L1589-L1611)). A refund burns nothing, but its verdict depends on the destination's code in the registering block; a reorg of that block can replay the registration where code now exists and credit the deposit instead. A refund already signed would then be paid twice. The shared wait is what prevents that, and this RSKIP does not shorten it.
