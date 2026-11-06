@@ -1,7 +1,7 @@
 ---
 rskip: YYY
 title: Peg-in v3: conditional credit, else refund
-description: Add a flags byte to the peg-in instructions; with the first flag set, the Bridge credits the destination only if it has code when the peg-in is registered, and otherwise refunds the deposit to the refund output
+description: Add a flags byte to the peg-in instructions; with the first flag set, the Bridge credits the destination only if it has code when the peg-in is registered, and otherwise refunds the deposit to the refund output, or with the second flag to the deposit's change output
 status: Draft
 purpose: Usa
 author: JP
@@ -19,8 +19,10 @@ Peg-in instructions version 2 (RSKIP704) let a peg-in name a refund output of an
 type, but define no case in which a parsed payload is refunded. This RSKIP adds protocol version 3,
 which carries a flags byte. With the `REQUIRE_CODE` flag set, the Bridge credits the destination
 only if that address holds contract code at the moment the peg-in is registered; if it holds none,
-the Bridge refunds the deposit to the refund output instead. A version-3 payload with the flag clear
-behaves as version 2.
+the Bridge refunds the deposit to the refund output instead. With the `REFUND_TO_CHANGE` flag set as
+well, the payload carries no refund output and the refund goes to the deposit transaction's change
+output, which the paying wallet displays and the payload's author cannot redirect unseen. A
+version-3 payload with no flag set behaves as version 2.
 
 This is the first rule that reads the refund output. It lets a Bitcoin payment be conditional on
 something having happened on Rootstock, without the Bridge knowing what, and it gives a user whose
@@ -62,15 +64,23 @@ Valid data lengths are 26 (no refund), 47 (20-byte program) and 59 (32-byte prog
 
 Flags:
 
-| Bit | Name           | Meaning                                                                 |
-| --- | -------------- | ----------------------------------------------------------------------- |
-| 0   | `REQUIRE_CODE` | Credit only if the destination has code at registration; else refund   |
-| 1–7 | reserved       | Must be zero                                                            |
+| Bit | Name               | Meaning                                                                 |
+| --- | ------------------ | ----------------------------------------------------------------------- |
+| 0   | `REQUIRE_CODE`     | Credit only if the destination has code at registration; else refund   |
+| 1   | `REFUND_TO_CHANGE` | The refund goes to the deposit's change output, not to a payload slot  |
+| 2–7 | reserved           | Must be zero                                                            |
 
-A payload with any reserved bit set is a parse failure. A payload with `REQUIRE_CODE` set and no
-refund output is a parse failure, so that no peg-in can commit to a refund it cannot receive. Parse
-failures are handled as in version 2: the sender-derived address is refunded if one exists,
-otherwise `unrefundable_pegin` is emitted.
+The following are parse failures:
+
+- any reserved bit set;
+- `REQUIRE_CODE` set, `REFUND_TO_CHANGE` clear and no refund output, so that no peg-in can commit to
+  a refund it cannot receive;
+- `REFUND_TO_CHANGE` set without `REQUIRE_CODE`;
+- `REFUND_TO_CHANGE` set and a refund output present (only the 26-byte form is valid with it).
+
+Valid flag values are therefore `00`, `01` (26, 47 or 59 bytes, with a refund output when the flag is
+set) and `03` (26 bytes only). Parse failures are handled as in version 2: the sender-derived address
+is refunded if one exists, otherwise `unrefundable_pegin` is emitted.
 
 ### Evaluation
 
@@ -86,8 +96,21 @@ minimum-value check and before anything else:
 code. The check is made against the state of the Rootstock block that includes the registration,
 not against any Bitcoin block height.
 
+With `REFUND_TO_CHANGE` set, step 3 first resolves the refund output from the deposit transaction
+itself: the outputs that pay neither a live federation (as the Bridge's live-federations wallet sees
+them, active or retiring) nor an `OP_RETURN`. If there is exactly one, its script is the refund
+output, whatever its type. If there is none or more than one, the Bridge credits the destination
+instead (`REGISTER`, `pegin_btc`), the same ending as an unbuildable refund below. The resolution
+reads only the witness-stripped transaction the Bridge already holds.
+
+*Implemented on the reference branch (`pegin-instructions-v23-poc`, commit `caab00e26`) and tested
+on 2026-10-27: unit tests for the parse rules, a P2PKH, P2WPKH and P2TR change, no change, two
+changes, and two federation outputs; on regtest the unsolved deposit was refunded to the change of a
+legacy, a native-segwit and a taproot wallet, and a deposit with no single change output was
+credited.*
+
 The refund follows the version-2 rule: it is built to the refund output, which is mandatory when the
-flag is set, by the existing rejection-release path (`generateRejectionRelease`), for the deposit
+flag is set (from the payload, or from the change output as above), by the existing rejection-release path (`generateRejectionRelease`), for the deposit
 less the release fee, from the deposit's own UTXOs. The transaction is marked processed.
 
 *Implemented on the reference branch and tested on 2026-10-14 (unit test, and on regtest with `feePerKb` at the maximum: the deposit is credited, `pegin_btc` only, no release). Two details of the implementation: the rejection is logged once a release exists, so a refunded version-3 peg-in emits `release_requested` then `rejected_pegin`; the node's `peg-in-refund` alarm still fires before the credit and should be downgraded for version 3.* If the release cannot be built (the release builder returns anything but success, for instance
@@ -120,6 +143,22 @@ address is known in advance, and only the designated deployer can put code there
 stranded in the federation's wallet with no record. Requiring the output at parse time means the
 user's own wallet rejects the combination before any BTC moves.
 
+**Why refund to the change output.** Whoever builds the `OP_RETURN` chooses the refund slot, and a
+hardware wallet shows the slot as hex it cannot attribute to a key; a payload composed by a dApp or
+a service can therefore name the composer's refund, and an unserved deposit is then paid to them.
+The change output is the one output a composer cannot add or redirect unseen: hardware wallets
+recognise change by the wallet's own derivation path and show every other output on the device
+screen as a recipient with an amount. Binding the refund to it turns a hex comparison into a check
+the device already performs, and shrinks the payload to 26 bytes. Refunding to the sender instead
+is not possible in general, because a segwit sender's key is in the witness, which the Bridge does
+not receive; the change output is in the stripped transaction for every input type.
+
+**Why credit when the change output is ambiguous.** With no change output there is nothing to
+refund to, and with two the Bridge cannot tell which belongs to the payer. A refund to a guessed
+output could pay a third party; a credit keeps the funds at the destination the payer named, where
+the protocol that asked for the flag can recognise and handle it (the same ending as an unbuildable
+refund). A wallet that sets the flag must create exactly one change output.
+
 **Why the check is at registration.** It is the only moment the Bridge acts on a peg-in. A
 consequence for protocols: code must be in place before the PowPeg registers, and a deployment
 that lands after registration is too late, since the refund is already queued. Registration
@@ -149,9 +188,17 @@ not recognise only for version-3 peg-ins.
 - **Forcing a refund.** Code cannot be removed from an address by a third party, so nobody can turn
   an intended credit into a refund. And a refund pays the user's own refund output, so even a
   refund the user did not want is a return of their funds, less the release fee.
-- **Refund address substitution.** The refund output is chosen by whoever builds the `OP_RETURN`, as
-  in version 2; a user who does not build their own payload must verify it, as they must verify the
-  destination. Unchanged by this RSKIP.
+- **Refund address substitution.** Without `REFUND_TO_CHANGE`, the refund output is chosen by
+  whoever builds the `OP_RETURN`, as in version 2; a user who does not build their own payload must
+  verify it, as they must verify the destination. With `REFUND_TO_CHANGE`, there is no slot to
+  substitute: a composer who wants the refund must redirect the change output, which the user's
+  wallet shows as a payment to an external address, or add an extra output, which makes the change
+  ambiguous and turns the refund into a credit to the destination.
+- **Missing or ambiguous change.** A flagged payment with no change output, or with an extra
+  non-federation output, is credited to a code-less destination rather than refunded. The funds are
+  not lost to the Bridge, but whether the payer can recover them is up to the destination's protocol.
+  Wallets must always create exactly one change output with the flag, and verifiers should flag its
+  absence.
 - **Refund size and fees.** Every rejection release today, for any protocol version, is built from
   the deposit less `feePerKb` times its size; when the builder cannot make the output (dust, or the
   fee exceeds the deposit, `COULD_NOT_ADJUST_DOWNWARDS`), the Bridge logs, panics and returns, and
@@ -188,6 +235,12 @@ not recognise only for version-3 peg-ins.
 - Unbuildable refund: with `feePerKb` set so that the release fee exceeds the deposit, a flagged
   peg-in to a code-less destination is credited (`pegin_btc`), no `release_requested` is emitted,
   and the transaction is marked processed.
+- Refund to change, parse: the 26-byte form with flags `03` parses; `02` alone is rejected; `03` with
+  a refund output (47 or 59 bytes) is rejected.
+- Refund to change, evaluation: with flags `03` to a code-less destination, one change output of each
+  refund type is refunded to; no change output, or two, is credited; two federation outputs and one
+  change are refunded to the change; `OP_RETURN` outputs are never taken as change; a destination
+  with code is credited whatever the outputs.
 - Flag clear: a version-3 peg-in with flags `00` to a code-less destination is credited.
 - Precompile destination: credited.
 - Pre-activation: a version-3 payload is treated as an invalid version.
