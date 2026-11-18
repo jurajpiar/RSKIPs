@@ -1,7 +1,7 @@
 ---
 rskip: YYY
 title: Peg-in v3: credit only if the destination has code
-description: Add an opt-in flag under which a peg-in is credited only if its destination has code at registration; otherwise it is never credited and a refund is attempted
+description: An opt-in flag under which a peg-in is credited only if its destination has code at registration; otherwise it is never credited and a refund is attempted
 status: Draft
 purpose: Usa
 author: JP
@@ -15,36 +15,44 @@ created: 12-OCT-26
 
 ## Abstract
 
-Peg-in instructions version 2 (RSKIP704) let a peg-in name a refund output of any common script
-type, but define no case in which a parsed payload is refunded. This RSKIP adds protocol version 3,
-which carries a flags byte. With the `REQUIRE_CODE` flag set, the Bridge credits the destination
-only if it holds contract code at registration. If it holds none, the peg-in is rejected and the
-Bridge refunds the deposit to the refund output, which the flag makes mandatory. A flagged peg-in
-is never credited to a destination without code. The refund itself is not guaranteed: if it cannot
-be made, the failure is recorded and the deposit is unrefundable, as a rejected peg-in of any other
-version is. A version-3 payload with the flag clear behaves as version 2.
+This RSKIP adds peg-in instructions version 3, which carries a flags byte. One flag is defined,
+`REQUIRE_CODE`. When it is set, the Bridge credits the destination only if the destination has code
+at the moment the peg-in is registered. If it has no code, the peg-in is rejected, it is never
+credited, and the Bridge attempts a refund to a refund output that the flag makes mandatory.
 
-This is the first rule that reads the refund output. It lets a Bitcoin payment be conditional on
-something having happened on Rootstock, without the Bridge knowing what, and gives a user a refund
-path when the expected execution has not occurred. As in RSKIP170, a credit transfers value without
-invoking the destination contract; the code-presence check does not execute it either.
+The refund is attempted, not guaranteed. When it cannot be made, the Bridge records the failure and
+the deposit stays with the federation, as happens today for a rejected peg-in of any version.
+
+A version-3 payload with the flag clear behaves as version 2 (RSKIP704).
+
+## What this proposal assumes
+
+The proposal is useful only if one assumption holds. It is stated here because no test in this
+document supports it, and a reader should judge it first.
+
+> A protocol can arrange that code exists at the destination if, and only if, the payer's intent
+> was fulfilled before the deposit is registered.
+
+The Bridge checks code presence and nothing else. It does not know what the code is, who deployed
+it, or why. A protocol that cannot keep code presence equal to fulfilment gains nothing from the
+flag, and may harm its users with it. The section "What a protocol must guarantee" lists the
+conditions.
 
 ## Motivation
 
-A peg-in can name a contract as its destination (RSKIP170) and the Bridge credits it whether or not
-anything is there. Protocols that derive the destination from the user's intent, so that the
-address itself commits to what should happen, have a failure ending the Bridge cannot see: nobody
-acted on the intent, the rBTC is credited to an address with no code, and the user's BTC is now rBTC
-in a contract they may be unable to spend from, since they hold no Rootstock key and no rBTC for
-gas. Returning it needs either a Rootstock transaction the user cannot send, or a third party paid
-to send BTC on their behalf.
+A peg-in can name any Rootstock address as its destination (RSKIP170). The Bridge credits that
+address whether or not anything is there.
 
-The Bridge can tell whether an address has code at registration, roughly a hundred Bitcoin blocks
-after payment. In a protocol where code is placed at the destination only when the intent has been
-acted on (for example, by a factory that deploys there on execution), "has code" is a faithful
-signal of "was acted on", and the Bridge can refund without knowing the protocol. RSKIP41 (2017,
-Draft) proposed exactly this ending, a Bitcoin refund "to transfer the remaining if no execution
-occurred"; RSKIP170 adopted the destination and refund fields and left the condition out.
+Some protocols derive the destination from the user's intent, so that the address commits to what
+should happen. If nobody acts on the intent, the rBTC is credited to an address without code. The
+user then holds no Rootstock key for it and no rBTC for gas. Recovery needs a Rootstock transaction
+the user cannot send, or a third party who is paid to return BTC.
+
+The Bridge can see whether an address has code when it registers the deposit. If the protocol
+deploys code at the destination only on fulfilment, the Bridge can return the BTC on Bitcoin
+without knowing the protocol. RSKIP41 (2017, Draft) proposed this ending: a Bitcoin refund address
+"to transfer the remaining if no execution occurred". RSKIP170 adopted the destination and refund
+fields and did not adopt the condition.
 
 The flag is opt-in. A peg-in without it, or with an older payload version, is credited as today.
 
@@ -52,341 +60,470 @@ The flag is opt-in. A peg-in without it, or with an older payload version, is cr
 
 ### Payload
 
-A version-3 peg-in instructions output is an `OP_RETURN` output of value zero whose data is:
+A version-3 peg-in instructions output is an `OP_RETURN` output of value zero. Its data is:
 
 - `52534b54` (`RSKT`), 4 bytes;
 - protocol version, 1 byte: `03`;
 - Rootstock destination address, 20 bytes;
 - flags, 1 byte;
-- optional refund output, encoded as in version 2 (RSKIP704): script type, 1 byte; program, 20 or
-  32 bytes.
+- optional refund output, encoded as in version 2 (RSKIP704): script type, 1 byte, then the
+  program, 20 or 32 bytes.
+
+The existing rules for finding the instructions output apply, including the limit of one `RSKT`
+output per transaction. The lengths below are the lengths of the data, without `OP_RETURN` and the
+push opcode.
 
 Flags:
 
-| Bit | Name           | Meaning                                                                |
-| --- | -------------- | ---------------------------------------------------------------------- |
-| 0   | `REQUIRE_CODE` | Credit only if the destination has code at registration; else reject  |
-| 1–7 | reserved       | Must be zero                                                           |
+| Bit | Name           | Meaning                                                               |
+| --- | -------------- | --------------------------------------------------------------------- |
+| 0   | `REQUIRE_CODE` | Credit only if the destination has code at registration; else reject |
+| 1–7 | reserved       | Must be zero                                                          |
 
-The valid flag and length combinations are:
+Valid combinations:
 
-| Flags | Data lengths (bytes) | Refund output                            |
-| ----- | -------------------- | ---------------------------------------- |
-| `00`  | 26, 47, 59           | Optional, as in version 2                |
-| `01`  | 47, 59               | Mandatory                                |
+| Flags | Data lengths (bytes) | Refund output             |
+| ----- | -------------------- | ------------------------- |
+| `00`  | 26, 47, 59           | Optional, as in version 2 |
+| `01`  | 47, 59               | Mandatory                 |
 
-Any other combination is a parse failure: a reserved bit set, any other length, or `REQUIRE_CODE`
-set with no refund output. Refund types and their program lengths must match RSKIP704. Parse
-failures are handled as in version 2: the sender-derived address is refunded if one exists,
-otherwise `unrefundable_pegin` is emitted.
+Everything else is a parse failure: a reserved bit set, any other length, `REQUIRE_CODE` with no
+refund output, an unknown refund type, or a program length that does not match its type in RSKIP704.
+
+A parse failure is handled as in version 2. The payload then supplies no refund destination. The
+Bridge attempts a refund to the sender-derived address if one exists, and otherwise emits
+`unrefundable_pegin`. A refund to the sender-derived address can also fail to be built.
+
+### Definition of "has code"
+
+A destination has code if one of these is true:
+
+- the account's code is not empty;
+- the address is a precompiled contract that is active under the consensus rules of the
+  registering block.
+
+A contract with empty runtime code does not have code. An inactive precompile address does not have
+code.
+
+The check reads the execution state at the point where `registerBtcTransaction` runs. That state
+includes the effects of earlier transactions in the same block. It does not include later
+transactions in the block. The Bridge does not execute the code, and it does not check what the code
+is or does.
 
 ### Evaluation
 
-A parsed version-3 payload is evaluated as follows, after the existing minimum-value check and
-before anything else. In rskj the verdict and the federation check belong in
-`PegUtils.evaluatePegin`; the refund is built where every rejection release is, in `BridgeSupport`.
+The existing checks stay in effect: the Merkle proof, the confirmations, repeated registration and
+the minimum value. The minimum-value check and the payload parse run first, as for every version. A
+parsed version-3 payload is then evaluated in this order:
 
-1. If `REQUIRE_CODE` is clear: `REGISTER`, as version 2.
-2. If `REQUIRE_CODE` is set and the destination has code, as defined below: `REGISTER`.
-3. Otherwise the peg-in is rejected with the new reason `PEGIN_DESTINATION_HAS_NO_CODE`. It is not
-   credited, whatever happens to the refund:
-   1. If the deposit's outputs pay more than one live federation (active and retiring), it is
-      unrefundable (`NO_REFUND`). No release is built. Two federations are live only during a
-      federation change, and a deposit to either one alone is unaffected.
-   2. Otherwise the Bridge builds a refund (`REFUND`) to the payload's refund output by the existing
-      rejection-release path (`generateRejectionRelease`): it spends the deposit's own UTXOs and
-      pays the deposit amount minus the release fee. Several outputs to the same federation are all
-      spent.
-   3. If the release cannot be constructed, the deposit is unrefundable. Nothing is queued and no
-      refund is attempted later. The construction failures are the builder responses
+1. `REQUIRE_CODE` is clear: the peg-in is credited, as version 2.
+2. `REQUIRE_CODE` is set and the destination has code: the peg-in is credited.
+3. Otherwise the peg-in is rejected with reason `PEGIN_DESTINATION_HAS_NO_CODE`. It is not
+   credited, whatever happens next:
+   1. If the deposit's outputs pay both the active and the retiring federation, the deposit is
+      unrefundable. No release is built. This can happen only during a federation change. A deposit
+      that pays one federation is not affected, including one that pays only the retiring
+      federation.
+   2. Otherwise the Bridge builds a refund to the payload's refund output on the existing
+      rejection-release path. The release spends every output of the deposit that pays the
+      federation. It pays the deposit amount minus the release fee.
+   3. If the builder cannot construct the release, the deposit is unrefundable. Nothing is queued
+      and no refund is attempted later. The construction failures are the builder responses
       `INSUFFICIENT_MONEY`, `COULD_NOT_ADJUST_DOWNWARDS`, `DUSTY_SEND_REQUESTED` and
-      `EXCEED_MAX_TRANSACTION_SIZE`. In fee and size sweeps of the reference builder only two were
-      observed on this path: a fee that exceeds the deposit, or that would leave the refund output
-      below the builder's dust floor, both surface as `COULD_NOT_ADJUST_DOWNWARDS`; an oversized
-      release surfaces as `EXCEED_MAX_TRANSACTION_SIZE`.
+      `EXCEED_MAX_TRANSACTION_SIZE`.
 
-In each of these outcomes the transaction is marked processed, whether or not RSKIP459 is active.
+In every outcome of step 3 the deposit is marked as processed, whether or not RSKIP459 is active. An
+unrefundable outcome creates no refund obligation and is not retried.
 
-"Has code" means the account's code is non-empty, or its address is a precompiled contract active
-under the consensus rules of the registering block. An inactive precompile address receives no
-special treatment, and a contract with empty runtime code does not count. The check uses the
-execution state at the point `registerBtcTransaction` runs, including changes made earlier in the
-same block, not the block's final state or any Bitcoin block height.
+This RSKIP keeps the builder's existing size checks. It does not add a check of the signed size. A
+release that is built is therefore not guaranteed to be relayed by Bitcoin nodes: see "Too large to
+relay" below.
 
-The verdict is fixed at registration. Step 3.3 covers only the construction failures listed, which
-occur before anything is queued. Any other error, including the builder's `UTXO_PROVIDER_EXCEPTION`,
-is an internal error and not a property of the deposit: it aborts the registration call without
-committing any registration state or event. A failed attempt does not mark the deposit processed, so
-it can be registered again. This holds whether the Bridge is called directly or by a contract that
-handles the call's failure and continues. Two consequences for an implementation. First, logs
-emitted by a precompile call that then fails are not rolled back, so an implementation must ensure
-that no event for this peg-in survives an aborted registration, whichever step fails, including
-loading or saving the release queue. Emitting events only once the release is built is not enough: a
-failure while queuing would still leave `rejected_pegin` in the receipt. Second, an aborted direct
-call is not visible as a failed transaction: its receipt reports success, with gas used and no
-Bridge logs. That is the current behaviour of direct precompile calls, which the draft RSKIP692
-describes and proposes to change; until then a failing direct call also commits whatever it wrote to
-the state outside the Bridge's own deferred storage, so the Bridge must write nothing there before
-the release is built. Once a release is queued it follows the peg-out path unchanged, and nothing
-that happens to it afterwards reclassifies the peg-in or credits the destination; failures at that
-stage are outside this RSKIP.
+### The verdict is final
+
+The verdict is fixed when registration completes, subject to the normal effects of a chain
+reorganisation. After a refund is queued, it follows the existing path of confirmation, signing and
+broadcast. Nothing that happens later credits the destination or changes the classification of the
+peg-in. This includes code that is deployed at the destination after registration, and a later
+failure of the refund. Recovery from a failure on that later path is outside this RSKIP.
+
+### Internal errors
+
+Any error that is not one of the four construction failures is an internal error. It is not a
+property of the deposit. The builder response `UTXO_PROVIDER_EXCEPTION` is an internal error. So is
+any failure to load or save Bridge state.
+
+An internal error makes the call to the Bridge fail. This RSKIP requires two things:
+
+- The Bridge does not classify the deposit as unrefundable because of an internal error. The
+  deposit is not marked as processed, and no release is queued, so the deposit can be registered
+  again.
+- The Bridge emits no event for the peg-in before the release is built. A failure of the builder
+  therefore leaves no event.
+
+What a failed call to a precompiled contract leaves behind is decided by the node, not by this
+RSKIP, and it is the same for every Bridge method and every peg-in version:
+
+- State changes that the Bridge holds in its deferred storage are discarded.
+- Events that the Bridge emitted before the failure stay in the receipt. This is true for a direct
+  call and for a call from a contract.
+- A direct call that fails produces a receipt that reports success, and it commits state that was
+  written directly.
+
+The draft RSKIP692 changes this for direct calls: after its activation, a failed direct call
+records no events and no state, and its receipt reports failure. Calls from a contract are not
+covered by RSKIP692 or by RSKIP197. See "Known limitation" in the security considerations.
 
 ### Events
 
-`rejected_pegin` (RSKIP181) gains one reason value:
+`rejected_pegin` (RSKIP181) gains one reason:
 
-- `PEGIN_DESTINATION_HAS_NO_CODE` (`6`): the payload required code at the destination and found
-  none.
+- `PEGIN_DESTINATION_HAS_NO_CODE` (`6`).
 
-`unrefundable_pegin` (RSKIP181) gains two reason values:
+`unrefundable_pegin` (RSKIP181) gains two reasons:
 
-- `OUTPUTS_SENT_TO_DIFFERENT_FEDS` (`5`): the deposit pays more than one live federation.
-- `REFUND_RELEASE_NOT_BUILT` (`6`): the release builder could not make the refund.
+- `OUTPUTS_SENT_TO_DIFFERENT_FEDS` (`5`): the deposit pays both live federations.
+- `REFUND_RELEASE_NOT_BUILT` (`6`): the builder could not construct the refund.
 
-A version-3 peg-in rejected because its destination has no code emits `rejected_pegin` with reason
-`6`, followed by `release_requested` (and the `pegout_transaction_created` that accompanies every
-queued release) when the refund is queued, or by `unrefundable_pegin` when it is not. This is the
-order every rejected peg-in already uses. `pegin_btc` is never emitted for it. No event signature
-changes.
+The events of a peg-in rejected under step 3 are, in order:
+
+| Outcome | Events |
+| --- | --- |
+| Refund queued | `rejected_pegin` (`6`), then `release_requested` |
+| Deposit pays both live federations | `rejected_pegin` (`6`), then `unrefundable_pegin` (`5`) |
+| Refund cannot be constructed | `rejected_pegin` (`6`), then `unrefundable_pegin` (`6`) |
+
+For a queued release, `pegout_transaction_created` follows under its existing activation rule
+(RSKIP428). The table shows reason values, not the full event arguments. This is the order that
+every rejected peg-in uses today. `pegin_btc` is never emitted for a rejected peg-in. No event
+signature changes. Parse failures and deposits below the minimum keep their existing reasons.
+
+## What a protocol must guarantee
+
+The flag is safe for a payer only if the protocol guarantees all of the following.
+
+1. **Code appears only on fulfilment.** CREATE2 fixes the address from the deploying contract, the
+   salt and the initialisation code. It does not restrict who may call the deploying contract. The
+   factory must enforce the fulfilment condition itself, and must prevent reuse of a deployed
+   destination for a different intent. Code presence also does not show that the funds can be spent,
+   or that the code is safe.
+2. **Code stays until registration.** If the contract can remove its own code under the active
+   rules, the signal can be withdrawn.
+3. **Fulfilment happens before registration.** Registration is possible after
+   `btc2RskMinimumAcceptableConfirmations` Bitcoin confirmations: 100 on mainnet, about 17 hours on
+   average. Bitcoin confirmations do not give a fixed time. Anyone may call
+   `registerBtcTransaction`. A party that gains from a refund, or from the protocol's failure, can
+   register at the first possible block. Code that is deployed later is too late. The protocol must
+   also make fulfilment fail after the deposit is registered, for example by refusing to fulfil once
+   the Bridge reports the deposit as processed. Otherwise the intent can be fulfilled and the
+   deposit refunded as well.
+4. **The destination is not an account whose owner can add or remove code at will.** See the open
+   question about delegated accounts.
+
+## When the payer receives no refund
+
+A rejected peg-in is never credited. In the cases below it is also not refunded. The BTC stays with
+the federation, no rBTC is issued, and this RSKIP defines no later recovery. `unrefundable_pegin`
+records the fact and does not create a claim.
+
+| Case | Condition | Result |
+| --- | --- | --- |
+| Two federations | One transaction pays the active and the retiring federation | `unrefundable_pegin` (`5`) |
+| Fee too high | After the fee, the refund is below the builder's dust limit | `unrefundable_pegin` (`6`) |
+| Too many inputs for the builder | The unsigned release exceeds the builder's size limit | `unrefundable_pegin` (`6`) |
+| Too large to relay | The signed release exceeds Bitcoin's standard size | Queued and announced; may never confirm |
+| Below minimum | Any federation output is below the minimum peg-in value | Not refundable, as in every version |
+
+Details of each case follow.
+
+**Two federations.** Two federations are live only from the activation of a new federation until
+the funds of the old one are migrated. On mainnet this is a little more than 10,585 Rootstock
+blocks, about 3.7 days. A wallet that pays one federation address never reaches this case. The
+realistic causes are a wallet fault during the change, and a deposit composed by a hostile party.
+
+**Fee too high.** The fee is `feePerKb` multiplied by the size the builder estimates, with a minimum
+of 5,000 sat. The refund output must keep at least the builder's dust limit: 2,730 sat for P2PKH
+and 2,865 sat for P2TR. For the minimum peg-in of 500,000 sat, and a release with one input:
+
+| Federation format | Estimated size | Fee at 8,000 sat/kB | At 240,000 | At 500,000 | Unbuildable from |
+| --- | --- | --- | --- | --- | --- |
+| P2SH-P2WSH, 5 of 9 | 329 vbytes | 1.0 % | 15.8 % | 32.9 % | 1,511,463 sat/kB |
+| Legacy P2SH, 5 of 9 | 917 bytes | 1.5 % | 44.0 % | 91.7 % | 542,281 sat/kB |
+
+The percentages are the share of the deposit that the fee takes. The maximum `feePerKb` on mainnet
+is 5,000,000 sat/kB, so both thresholds are inside the permitted range. A refund to a P2TR output
+becomes unbuildable slightly earlier: from 1,470,817 sat/kB for the first row and from 536,864
+sat/kB for the second. The table's rates are examples, not consensus constants.
+
+The values voted on mainnet so far, read from the Bridge's state on 18 November 2026, are: 500,000
+sat/kB from genesis until August 2018; 8,000 since October 2025; and in between, a highest value of
+480,000 (8 May 2023, for about a day), with 473,000 (20 April 2024, for about a day) and 394,000 (16
+December 2023) next. From April 2021 to July 2024, 3.2 % of blocks had a value of 200,000 or more.
+No value so far has come near the threshold of the P2SH-P2WSH format. The federation that was live
+at each of those three dates used the legacy P2SH format, as read from the Bridge's state; the
+current federation uses P2SH-P2WSH. For that format, the values of 2023 and 2024 came within 13 % of
+the threshold: at 480,000 sat/kB, a refund of a minimum deposit returns 12 % of it. The state was
+sampled about every 17 hours from April 2021 to July 2024 and about every week at other times, so a
+shorter spike could be missing.
+
+**Too many inputs.** Each federation output of the deposit becomes one input of the refund. The
+builder rejects the release at 196 inputs for the legacy format and at 2,438 for the P2SH-P2WSH
+format. The builder measures the release before signatures are added.
+
+**Too large to relay.** The signed release is larger than the release the builder measured. Bitcoin
+Core 29.4 rejected, with `tx-size`, a signed refund with 150 legacy inputs (130,157 vbytes) and one
+with 500 P2SH-P2WSH inputs (141,231 vbytes). The builder accepted both. In the test fixture, Bitcoin
+Core rejects the signed refund from 116 legacy inputs (100,695 vbytes) and from 354 P2SH-P2WSH
+inputs (100,007 vbytes), and does not reject it for its size at 115 and 353 inputs. Signature
+lengths vary, so the limit can move by an input or two. In this case the Bridge emits
+`release_requested` for a transaction that nodes with default policy do not relay. This behaviour
+exists today for every rejection release. This RSKIP does not change it: see "Related work".
+
+**Advice for wallets.** A wallet should refuse to sign a flagged deposit that pays more than one
+federation address, that has more than a few federation outputs, or whose value is close to the
+minimum.
 
 ## Rationale
 
-**Why a flag rather than a new rule for every peg-in.** Crediting an address without code is the
-behaviour RSKIP170 chose on purpose, so that funds can be sent ahead of deployment. The flag keeps
-that default and lets a payment opt out of it.
+**Why a flag.** RSKIP170 chose to credit an address without code, so that funds can be sent before
+deployment. The flag keeps that default and lets a payment opt out.
 
-**Why "has code" and not anything more specific.** Any richer condition (a method the Bridge calls,
-a registry it consults) would make the Bridge depend on a particular contract's interface, and
-consensus code should not. Code presence is a property of the state the Bridge already holds, costs
-one lookup, and is enough for protocols that make deployment inseparable from successful fulfilment.
-CREATE2 commits the address to the deploying contract, salt and initialisation code; it does not
-restrict who can call the deploying contract. The factory must enforce the fulfilment condition,
-including preventing reuse of an already-deployed destination for a different, unfulfilled intent.
+**Why code presence, and nothing more specific.** A richer condition, such as a method the Bridge
+calls or a registry it reads, would make consensus code depend on the interface of one contract.
+Code presence is a property of state the Bridge already reads, and it costs one lookup.
 
-**Why the refund output is mandatory with the flag.** Native segwit and taproot inputs give the
-Bridge no sender-derived address to fall back on, so a flagged peg-in without a refund output could
-only ever be unrefundable. Making its absence a parse failure lets an aware wallet reject the
-payload before payment. It does not guarantee that the refund can be built at the fee rate in
-effect at registration.
+**Why the refund output is mandatory with the flag.** Inputs that are native segwit or taproot give
+the Bridge no sender-derived address, so a flagged peg-in from such inputs without a refund output
+could never be refunded. Other input types do give an address, but an explicit output makes the
+refund destination independent of the input type. Making its absence a parse failure lets a wallet
+reject the payload before payment. It does not guarantee that the amount can be refunded.
 
-**Why the condition is strict.** The payer's instruction is "credit this address only if it has
-code". Crediting it anyway when a refund is hard to make would turn that into a preference. The
-Bridge cannot know whether a credit to a code-less address is recoverable: the address may never
-become deployable, or may be controlled by a party the payer meant to pay only on fulfilment.
-A credit fallback would also reward whoever composes the deposit for making the refund fail, since
-a deposit that cannot be refunded would be paid out unconditionally. Under the strict rule an
-induced failure cannot produce an unconditional credit, though it can still be used to harm the
-payer. The cost is that a failed refund leaves the deposit with
-the federation, as it does for every other version; this RSKIP records that outcome with an event
-and does not otherwise change it.
+**Why the destination is never credited as a fallback.** Earlier drafts credited the destination
+when the refund could not be built. That rule was removed for three reasons.
 
-**Why a deposit to several federations is unrefundable.** A rejection release spends every
-federation output of the deposit in one transaction, and the Bridge accepts signatures one federator
-at a time, each covering every input with a single key. Such a release is not reliably signable. The
-builder succeeds in every case, so without this rule the release would be queued and announced. What
-happens next depends on the two federations. With disjoint member keys it never completes:
-signatures accumulate on one input and later signers are refused. With the same keys and the same
-script format it is signed and valid. With shared keys and different formats the Bridge treats it as
-fully signed and emits `release_btc` for a transaction Bitcoin Core rejects, because the redeem data
-of both inputs is placed in the active federation's format; the same happens with a partly shared
-membership of one format when a member of only one federation signs among the first. rskj's comment
-on `getFederationFromTxOutputs`, that such a transaction "will never be correctly signed", is
-therefore too strong, but the outcome depends on the federations' membership and formats and on the
-order in which federators sign, none of which the payer controls. The existing legacy rule withholds
-a refund only when the federations differ in type (`hasOutputsToDifferentTypesOfFeds`); this rule is
-wider because same-type federations with different members fail too. Splitting the deposit into one
-refund per federation would need separate fee, event and partial-failure rules, which this draft
-does not introduce.
+- The payer's instruction is "credit this address only if it has code". A fallback credit changes
+  the instruction into a preference.
+- Whoever composes the deposit controls its amount and its outputs, and can therefore make the
+  refund fail. With a fallback, a deposit that cannot be refunded would be paid without condition.
+  This matters most for a payer who checks the payload but not the outputs: a composer who can
+  change the payload unseen can also clear the flag.
+- The Bridge cannot know whether rBTC at an address without code is recoverable.
 
-**Why there is no refund to the change output.** An earlier draft let the Bridge take the refund
-script from the deposit's change output. Selecting an output does not establish that the payer owns
-it, so the safety of that form rests on wallet checks that consensus cannot make, and it adds
-several ways for a refund destination to be unresolvable. It is left to a separate proposal.
+Under the strict rule a hostile composer cannot obtain a credit. The composer can still cause the
+payer to lose the deposit. The wallet advice above addresses this.
 
-**Why the check is at registration.** It is the only moment the Bridge acts on a peg-in. A
-consequence for protocols: code must be in place before the deposit is registered, and a deployment
-that lands after registration is too late, since the refund is already queued. Registration
-becomes possible once the deposit has `btc2RskMinimumAcceptableConfirmations` Bitcoin confirmations
-(100 on mainnet, about 17 hours), and `registerBtcTransaction` can be called by anyone. A protocol
-must therefore treat that point as a hard deadline that a third party can enforce, not as the
-moment the PowPeg happens to act; any later deployment is a race it may lose.
+**Why a deposit to two federations is not refunded.** A rejection release spends every federation
+output in one transaction. Each federator signs every input with one key. The result depends on
+the two federations:
 
-**Why reserved bits must be zero.** A later RSKIP can assign them without changing the payload
-layout, and without a parser on any node having silently accepted a payload whose meaning it did
-not know. Accepting a bit that is invalid today is still a consensus change, with its own
-activation.
+| Federations | Result |
+| --- | --- |
+| No shared member keys | The release never completes. Signatures accumulate on one input. |
+| Same keys, same format | The release is signed and valid. |
+| Same keys, different formats | The Bridge emits `release_btc` for a transaction that Bitcoin rejects. |
+| 8 of 9 keys shared, same format | Valid or invalid, depending on which federators sign first. |
+
+The comment in rskj that such a transaction "will never be correctly signed" is too strong. The
+rule is still correct, because the result depends on membership, format and signing order, and the
+payer controls none of them. The realistic federation change, the same members moving to a new
+format, is the case that produces an invalid announced release. The existing rule for legacy
+peg-ins refuses a refund only when the formats differ. This rule is wider because federations of
+the same format with different members also fail.
+
+One refund per federation would avoid the problem. It needs rules for separate fees, events and
+partial failure, and it is not proposed here.
+
+**Why the refund is not sent to the change output here.** An earlier draft took the refund script
+from the deposit's change output, and credited the destination when it could not. A separate
+proposal, RSKIP ZZZ, defines that form again without a credit and assigns it bit 1 of the flags
+byte. This RSKIP keeps bit 1 reserved.
+
+**Why the check is at registration.** Registration is the only moment at which the Bridge acts on a
+peg-in.
+
+**Why the refund waits as long as a peg-out.** The refund is queued with the peg-outs and released
+after `rsk2BtcMinimumAcceptableConfirmations` (4,000 blocks on mainnet). The verdict depends on the
+destination's code in the registering block. If that block is reorganised, the registration can be
+replayed in a state where the code exists, and the deposit is credited. A refund that was already
+signed would then pay the deposit a second time. The shared wait reduces this risk, and this RSKIP
+does not shorten it. The wait does not make a deeper reorganisation impossible.
+
+**Why reserved bits must be zero.** A later RSKIP can assign a bit without changing the payload
+layout. No node will have accepted a payload whose meaning it did not know.
 
 ## Backwards compatibility
 
-This change is a hard fork and all full nodes must be updated.
+This change is a hard fork. All full nodes must be updated. Version 3 must not be activated before
+RSKIP704, on which it depends.
 
-Legacy peg-ins (no instructions; protocol version 0 inside rskj) and versions 1 and 2 are
-untouched. Before activation a version-3 payload is rejected as an invalid version. That is the
-parse-failure rule of RSKIP170, reported with RSKIP181's reason `4` (`PEGIN_V1_INVALID_PAYLOAD`):
-a refund to the sender-derived address, or `unrefundable_pegin` where none can be derived. So
-wallets must not emit version 3 before the activation height. All new rules are activation-gated
-and restricted to version 3; older versions keep their outcomes, events and receipt contents.
+Legacy peg-ins and versions 1 and 2 are not changed: their outcomes, events and receipt contents
+stay the same before and after activation.
 
-The new reason values are appended, so existing consumers of `rejected_pegin` and
-`unrefundable_pegin` see a value they do not recognise only for version-3 peg-ins.
+Before activation, a version-3 payload is an invalid version. It follows the parse-failure rule of
+RSKIP170 and is reported with reason `4` (`PEGIN_V1_INVALID_PAYLOAD`) of RSKIP181: a refund to the
+sender-derived address, or `unrefundable_pegin` if no address can be derived. Wallets must not use
+version 3 before the activation height.
+
+The new reason values are appended to the existing lists. A consumer of `rejected_pegin` or
+`unrefundable_pegin` sees an unknown value only for version-3 peg-ins, and must accept such values
+after activation.
 
 ## Security considerations
 
-- **Forcing a credit.** A flagged deposit is credited only if the destination has code at
-  registration. Code presence is a fulfilment signal only when the destination's factory enforces
-  that invariant; CREATE2 alone does not prevent a third party from calling a deployment method.
-- **Forcing a refund.** Protocols must ensure that code remains present until registration. A
-  contract's own destruction logic, where permitted by the active rules, can invalidate the signal.
-  Code presence does not prove that a particular intent was fulfilled.
-- **Early registration.** Anyone can register a deposit as soon as it has enough confirmations. A
-  party that gains from a refund, or simply from a protocol's failure, can register at the first
-  opportunity, before code is deployed. Protocols must fulfil within the confirmation window.
-- **Refund address substitution.** The refund output is chosen by whoever builds the `OP_RETURN`, as
-  in version 2. A user who does not build their own payload must have it verified by software they
-  trust, as they must the destination and the flags.
-- **Unrefundable deposits are lost to the payer.** When the refund cannot be made, the BTC stays
-  with the federation and no rBTC is issued for it. `unrefundable_pegin` records the fact; it does
-  not create a claim, and this RSKIP defines no later recovery. The causes are a release the builder
-  cannot make and a deposit paying two federations. The second needs one Bitcoin transaction with
-  outputs to both the active and the retiring federation, so it can happen only during a federation
-  change: from the new federation's activation until the old one's funds are migrated, a little over
-  10,585 Rootstock blocks on mainnet (about 3.7 days). No wallet paying a single federation address
-  reaches it; the realistic routes are a wallet fault around the changeover and a deposit composed
-  by a hostile party. The rule is there because the Bridge must define an outcome for every valid
-  deposit, not because the case is expected.
-- **Induced refund failure.** Whoever composes the deposit chooses its amount, its federation
-  outputs (each becomes a refund input) and its refund output, and so can make the refund fail, for
-  instance by paying both federations. Under the strict rule this cannot induce a credit, but it
-  costs the payer the deposit, which a hostile composer may want. A wallet should refuse to sign a
-  flagged deposit that pays more than one federation address or has an unusual number of federation
-  outputs.
-- **Below-minimum deposits.** The minimum-value check runs before the payload is read. A flagged
-  deposit with any federation output below the minimum is non-refundable, as in every version; the
-  flag does not turn it into a refund.
-- **Refund size and fees.** A rejection release pays the deposit amount minus the fee. The fee is
-  `feePerKb` multiplied by the release's size, with a minimum of 5,000 sat, and the refund output
-  must keep at least the builder's dust floor (2,730 sat for P2PKH, 2,865 for P2TR; Bitcoin Core's
-  own thresholds are lower). When the builder cannot make it, no refund exists. This is an existing
-  property of rejection releases for every version. Today it is reached only by malformed or unusual
-  peg-ins; with `REQUIRE_CODE` every unserved deposit is a refund, so ordinary users can reach it.
-  For perspective, mainnet's `feePerKb` has been voted between 8,000 sat/kB (2025 to date) and
-  500,000 (genesis), with a 2023 peak of 240,000, against a maximum of 5,000,000. Measured with the
-  reference builder for the 500,000-sat minimum peg-in and a 5-of-9 P2SH-P2WSH federation (the
-  current mainnet shape), the one-input refund to a P2PKH output is charged as 329 vbytes (the
-  builder's estimate; a signed one measured 327) and costs 1.0 %, 15.8 % and 32.9 % of the deposit
-  at those three values. It becomes unbuildable at 1,511,463 sat/kB (1,470,817 for a P2TR refund),
-  inside the cap; with more federation outputs of the same value the threshold rises to about
-  1,750,000. A legacy P2SH federation is far worse: charged as 917 bytes (914 signed), 44 % and 92 %
-  of the deposit at 240,000 and 500,000 sat/kB, and unbuildable from 542,281 sat/kB, so the exposure
-  is greatest while a legacy-format federation is live. The size limit is reached at 196 federation
-  outputs for a legacy federation and 2,438 for the segwit one, since it is checked on the release
-  as built, before signatures and without witnesses. Well below that limit the signed release is
-  larger than Bitcoin Core's default policy relays (100,000 vbytes). Fully signed releases with 150
-  legacy inputs (130,157 vbytes) and 500 segwit inputs (141,231 vbytes) pass the builder and are
-  rejected by Bitcoin Core 29.4 as `tx-size`; the boundaries are estimated at roughly 115 and 355
-  inputs. Such a refund is queued and announced but would not relay under default policy. A client
-  should keep flagged deposits well above the Bridge minimum and use few federation outputs.
-- **The refund waits like a pegout, and must.** The rejection release is queued with the pegouts and
-  released after `rsk2BtcMinimumAcceptableConfirmations`
-  ([source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L3260-L3261),
-  [source](https://github.com/jurajpiar/rskj/blob/4449dd24d9301711eafe79ae5dd7577b5f634e91/rskj-core/src/main/java/co/rsk/peg/BridgeSupport.java#L1589-L1611)).
-  A refund burns nothing, but its verdict depends on the destination's code in the registering
-  block; a reorg of that block can replay the registration where code now exists and credit the
-  deposit instead. A refund already signed would then be paid twice. The shared wait is what
-  prevents that, and this RSKIP does not shorten it.
-- **Cost to the federation.** Each refund is a federation-signed Bitcoin transaction paid from the
-  deposit. A protocol whose intents are often unserved generates refunds at its users' expense, not
-  the federation's.
-- **powHSM.** No change: the device authorises a release by matching the transaction hash to a
-  `release_requested` log and does not interpret outputs (RSKIP704, security considerations).
+The two preceding sections, "What a protocol must guarantee" and "When the payer receives no
+refund", are the main security considerations. The remaining ones are:
+
+- **Refund address substitution.** Whoever builds the `OP_RETURN` chooses the refund output, as in
+  version 2. A user who does not build the payload must verify the refund output, the destination
+  and the flags with software they trust. The Bridge cannot establish that the refund output belongs
+  to the payer.
+- **Cost to the federation.** Each refund is a Bitcoin transaction that the federation signs. Its
+  fee is paid from the deposit. A protocol whose intents are often not fulfilled creates processing
+  and signing work for the federation, and its users pay the fees.
+- **Known limitation: events of a failed registration.** If an internal error occurs after the
+  release is built, for example while the release queue is loaded or saved, the events already
+  emitted stay in the receipt: `rejected_pegin`, and possibly `release_requested`. The receipt then
+  describes a refund that was not queued. A later registration of the same deposit emits its events
+  again, and may reach a different verdict if code was deployed in the meantime. No input is known
+  that causes such an error: the data involved is written only by the Bridge. It was reproduced only
+  by replacing internal functions in a test. The cause is the node's handling of failed precompiled
+  contracts, which exists today for all Bridge events. Consumers of Bridge events should confirm a
+  queued release in Bridge state before they rely on `release_requested`.
+- **powHSM.** No change is expected. The device authorises a release by matching the transaction
+  hash to a `release_requested` log, and it does not interpret outputs (RSKIP704). This has not been
+  tested for this proposal.
+
+## Related work: rejection releases in general
+
+Four of the behaviours described above belong to every rejection release, not to version 3. This
+RSKIP records them and does not change them for other versions. A rule added here would correct one
+payload version and leave the others as they are, so they are better treated in one proposal that
+covers all rejection releases.
+
+- **A refund that cannot be built is a silent loss.** For legacy, version-1 and version-2 peg-ins,
+  the Bridge emits `rejected_pegin`, marks the deposit as processed and emits nothing more. This
+  RSKIP adds `unrefundable_pegin` for version 3 only.
+- **A refund that is too large to relay is queued.** The builder measures the release before
+  signatures are added. A check of the estimated signed size against Bitcoin's standard size would
+  need a size estimate and a limit that are fixed in consensus. The relay-policy settings of a local
+  Bitcoin node must not decide a consensus result.
+- **A legacy peg-in that pays two federations of the same format is refunded.** The existing rule
+  refuses the refund only when the formats differ. In a test on the reference branch, such a deposit
+  from a P2SH multisig sender emitted `release_requested`, and the release was queued. With no
+  shared member keys it could not be completed. With 8 of 9 keys shared it was valid when the shared
+  members signed first, and the Bridge emitted `release_btc` for an invalid transaction when the
+  member of only one federation signed first.
+- **Events of a failed call stay in the receipt.** See "Known limitation" above and RSKIP692.
+
+## Evidence
+
+This table states the basis of each claim, so that a reader can see which parts are measured and
+which are not. "Measured" means a result from the reference branch described below. Two reviewers
+reproduced each measured result, but they used the same code and the same fixtures, so the
+reproductions are not independent evidence.
+
+| Claim | Basis |
+| --- | --- |
+| Code presence can equal fulfilment | Assumed. Not tested. |
+| The code check sees earlier transactions in the same block only | Measured in block execution |
+| Empty runtime code does not count | Measured in block execution |
+| All five refund output types are standard | Measured: Bitcoin Core 29.4 accepted one transaction with all five |
+| Two-federation signing results | Measured with regtest deposits and Bitcoin Core 29.4 |
+| A legacy peg-in to two same-format federations is queued | Measured through `registerBtcTransaction`; signature validity checked in the test, not by Bitcoin Core |
+| Estimated sizes, fees and unbuildable thresholds | Measured with the reference builder |
+| Signed sizes (327 vbytes, 914 bytes for one input) | Measured; signature lengths vary |
+| Relay limit at 116 legacy and 354 P2SH-P2WSH inputs | Measured with Bitcoin Core 29.4, for one fixture with outpoints that do not exist |
+| Only two construction failures occur in practice | Observed in fee and size sweeps. Not proven |
+| Builder faults leave no state and no event | Measured, with injected faults |
+| Events survive an internal error after the release is built | Measured, with injected faults in loading and saving the release queue |
+| A failed save in a direct call is committed part-way | Measured: one storage cell changed. Node behaviour, see RSKIP692 |
+| No input causes such an internal error | Reasoned from the code. Not proven |
+| Mainnet federation is 5 of 9, P2SH-P2WSH | Measured from the Bridge's state on 18 November 2026: 5 of 9, with a 3-of-4 emergency branch. The federations live in May 2023, December 2023 and April 2024 used the legacy P2SH format |
+| Mainnet `feePerKb` history | Measured from the Bridge's state on mainnet; spikes shorter than the sampling interval could be missing |
+| A rejected peg-in is refunded end to end | Measured on regtest with a running federator and Bitcoin Core: P2WPKH and P2TR refunds confirmed, each paying the deposit minus the fee. A peg-in to a destination with code was credited |
+| A refund can be signed by a powHSM | Measured on regtest with the powHSM 5.6.3 emulator (TCPSigner) and one federator: one signature, refund confirmed. Not tested with a live federation or a physical powHSM |
 
 ## Implementation status
 
-The standalone [version-2 PoC](https://github.com/jurajpiar/rskj/pull/3) implements RSKIP704's
-refund-script support. The standalone [version-3 PoC](https://github.com/jurajpiar/rskj/pull/4)
-implements the code-presence condition with P2PKH and P2SH refunds only; that is its stated scope.
-The combined branch is `pegin-instructions-v23-poc`, commit
-[`caab00e26`](https://github.com/jurajpiar/rskj/commit/caab00e26).
+The [version-2 PoC](https://github.com/jurajpiar/rskj/pull/3) implements the refund-script support
+of RSKIP704. The combined version-2 and version-3 branch is `pegin-instructions-v23-poc`, commit
+[`caab00e26`](https://github.com/jurajpiar/rskj/commit/caab00e26). It implements an earlier draft
+and does not conform to this one: it still refunds to the change output and credits the destination
+when the refund cannot be built.
 
-The combined PoC predates this revision and does not conform to it: it still implements a refund
-to the deposit's change output and a credit to the destination when the refund cannot be built,
-both of which this draft has removed.
+A local branch that is not published, `pegin-instructions-v3-strict-poc`, implements this draft. The
+`co.rsk.peg` unit tests pass on it (6,543 tests, 119 skipped).
 
-A local, unpublished branch (`pegin-instructions-v3-strict-poc`, based on that commit) implements
-the rules above. On it the `co.rsk.peg` unit tests pass (6,538 tests, 119 skipped), and the
-following were measured on 2026-11-15: an internal error leaves no state and no Bridge log, by
-direct call and through a contract, in real block execution with an injected fault; the code check
-is intra-block; the two-federation signing outcomes and the refund sizes and fee thresholds quoted
-in this draft; and one transaction paying all five refund output types is accepted by Bitcoin Core
-29.4 (`testmempoolaccept`). In those runs the Bitcoin side was seeded into the Bridge's state and
-not produced by a live federation, and no end-to-end regtest run of the strict branch has been made.
-The branch does not yet conform on one point: it emits `rejected_pegin` once the release is built
-but before the release queue is loaded, and an injected failure at that step leaves the event in the
-receipt, by direct call and through a contract. The remaining test cases below are requirements, not
-results.
+In the block-execution tests, the Bitcoin side was written directly into the Bridge's state. An
+end-to-end run on regtest then used the branch with a federator node and Bitcoin Core: deposits
+made on Bitcoin, registered by the federator, and refunds signed, broadcast and confirmed. Four
+scenarios passed: P2WPKH and P2TR refunds signed with software keys, a credit to a destination with
+code, and a P2WPKH refund signed by the powHSM 5.6.3 emulator. In each refund the Bridge emitted
+`rejected_pegin` (reason 6), `release_requested` and `pegout_transaction_created` in the block that
+registered the deposit, and `release_btc` once signed. The emulator needed a checkpoint above
+block 480 and larger header batches, which are test settings, not changes to the branch.
 
 ## Test cases
 
-- Parse: flags `00` accept 26, 47 and 59-byte payloads; flags `01` accept 47 and 59 bytes and reject
-  26 bytes; any reserved bit is rejected, including `02` and `03`; each refund type from version 2
-  is checked with correct and incorrect program lengths.
-- Credit: a flagged peg-in to a destination that has code is credited exactly as version 2.
-- Refund: a flagged peg-in to a destination without code emits `rejected_pegin` with reason `6`
-  followed by `release_requested`; the release pays the refund output the deposit amount minus the
-  fee; no `pegin_btc` is emitted; the transaction is marked processed. Repeated for each of the five
-  refund types, each output accepted by Bitcoin Core as standard, and for two outputs to one
-  federation.
-- Timing: code deployed earlier in the same Rootstock block leads to a credit; deployed later in
-  that block, or in the next block, leads to a refund. Empty runtime code leads to a refund.
-- Unbuildable refund: with `feePerKb` set so that the release fee exceeds the deposit, and
-  separately with enough federation outputs to exceed the maximum transaction size (practical
-  against a legacy-format federation, about 196 outputs), a flagged peg-in to a code-less
-  destination emits `rejected_pegin` (`6`) and `unrefundable_pegin` (`6`); no `release_requested` or
-  `pegin_btc` is emitted, nothing is queued, the destination's balance is unchanged, and the
-  transaction is marked processed. Registering it again has no effect.
-- Two federations: a flagged deposit paying the active and the retiring federation, to a code-less
-  destination, emits `rejected_pegin` (`6`) and `unrefundable_pegin` (`5`) and queues nothing, for
-  federations of the same and of different script formats. The same deposit to a destination with
-  code is credited.
-- Internal error: with the release builder made to return `UTXO_PROVIDER_EXCEPTION`, and separately
-  to throw, registration of a flagged peg-in to a code-less destination aborts. Both need fault
-  injection; no deposit reaches them. The deposit is not marked processed, no release is queued, no
-  balance or Bridge storage changes and no Bridge log is in the receipt; once the fault is removed,
-  a later registration succeeds normally. Exercise both a direct call and a call from a contract
-  that catches the failure and continues.
-- No reclassification: after a refund is queued, deploying code at the destination and any later
-  Bridge call leave the peg-in rejected and the destination uncredited.
-- Flag clear: a version-3 peg-in with flags `00` to a code-less destination is credited.
-- Precompile destination: each active precompile, including those enabled after genesis, is
-  credited; an inactive precompile address without stored code is refunded.
-- Pre-activation: a version-3 payload is treated as an invalid version.
-- Regression: all legacy, version-1 and version-2 vectors unchanged, including event order and
-  receipt contents, before and after activation. Version-3 parse failures and below-minimum deposits
-  keep their existing outcomes.
+- **Parse.** Flags `00` accept 26, 47 and 59 bytes. Flags `01` accept 47 and 59 bytes and reject 26
+  bytes. Every reserved bit is rejected, including `02` and `03`. Each refund type of version 2 is
+  tested with a correct and an incorrect program length. An unknown refund type and two instructions
+  outputs in one transaction are rejected.
+- **Credit.** A flagged peg-in to a destination with code is credited exactly as version 2.
+- **Refund.** A flagged peg-in to a destination without code emits `rejected_pegin` (`6`), then
+  `release_requested`. The release pays the refund output the deposit amount minus the fee. No
+  `pegin_btc` is emitted. The deposit is marked as processed. Repeat for each of the five refund
+  types and for two outputs to one federation. Sign refunds that spend real regtest deposits, and
+  validate them with Bitcoin Core.
+- **Timing.** Code deployed earlier in the same block gives a credit. Code deployed later in the
+  block, or in the next block, gives a refund. Empty runtime code gives a refund.
+- **Refund that cannot be built.** Set `feePerKb` so that the fee exceeds the deposit. Separately,
+  use enough federation outputs to exceed the builder's size limit (196 for a legacy federation).
+  Expect `rejected_pegin` (`6`) and `unrefundable_pegin` (`6`), no `release_requested`, no
+  `pegin_btc`, nothing queued, no change to the destination's balance, and the deposit marked as
+  processed. Registering again has no effect. Test each of the four construction-failure responses,
+  with fault injection for those that no deposit reaches.
+- **Two federations.** A flagged deposit that pays the active and the retiring federation, to a
+  destination without code, emits `rejected_pegin` (`6`) and `unrefundable_pegin` (`5`) and queues
+  nothing. Test federations of the same format and of different formats, with no shared members and
+  with shared members. Test with RSKIP459 active and inactive. The same deposit to a destination
+  with code is credited.
+- **Internal error.** Inject two faults: the builder returns `UTXO_PROVIDER_EXCEPTION`, and the
+  builder throws. In each case the deposit is not marked as processed, nothing is queued, no balance
+  or Bridge storage changes, and the receipt contains no Bridge log. After the fault is removed, a
+  new registration succeeds. Test a direct call and a call from a contract that handles the failure
+  and continues.
+- **Internal error after the release is built.** Inject a failure in loading the release queue, and
+  separately in saving it. The deposit is not marked as processed and nothing is queued. After the
+  fault is removed, a new registration succeeds. The events that stay in the receipt are recorded,
+  not required to be absent, until the node's behaviour changes.
+- **Too large to relay.** A release that the builder accepts and that Bitcoin Core rejects as
+  `tx-size` after signing is queued at registration. A later relay failure produces no
+  `unrefundable_pegin` and no credit. Distinguish this from the builder's own size failure.
+- **Final verdict.** After a refund is queued, deploy code at the destination and register again.
+  The peg-in stays rejected and the destination is not credited.
+- **Flag clear.** A version-3 peg-in with flags `00` to a destination without code is credited.
+- **Precompiled destination.** Each active precompiled contract is credited, including those enabled
+  after genesis. An inactive precompile address is refunded.
+- **Before activation.** A version-3 payload is treated as an invalid version.
+- **Regression.** All vectors for legacy, version-1 and version-2 peg-ins are unchanged, including
+  event order and receipt contents, before and after activation.
 
 ## Open questions
 
-- Whether a refund that cannot be made should leave a recorded, retryable obligation instead of a
-  loss. That needs accounting, fee, retry and resource-limit rules, and the same failure exists for
-  every peg-in version, so it is better treated in an RSKIP covering all rejection releases.
-- Whether a payer should be able to authorise a credit when the refund fails, with a further flag.
-  Explicit authorisation would make that outcome legitimate, but it is a second payment policy whose
-  need has not been established independently. It would also need its precedence over `REQUIRE_CODE`
-  and its set of eligible failures defined. It is not proposed here.
-- Whether a refund to the deposit's change output should return as a separate proposal, and how a
-  wallet would prove ownership of the selected output.
-- Whether a refund whose signed size would exceed Bitcoin's standard relay limit should be treated
-  as a construction failure (`unrefundable_pegin`) and not queued. That needs a conservative size
-  estimate fixed in consensus; today such a release is queued for every peg-in version.
-- Whether a delegated account should count as having code. Under the definition above it would: the
-  draft RSKIP545 (set code for externally owned accounts) stores a 23-byte delegation designator as
-  the account's code. It is not active on any network, but an implementation branch exists. The key
-  holder could then set or clear "has code" with one transaction, which matters for a destination
-  that is an externally owned account. This draft should decide explicitly before RSKIP545 advances.
-- Whether the check should accept a destination that had code at any earlier block, rather than at
-  registration, to recognise execution even if the code was subsequently removed. This would not
-  resolve deployment after registration and would need a record the Bridge does not keep today, so
-  this draft does not propose it.
+1. **Should a delegated account count as having code?** Under the definition above it would. The
+   draft RSKIP545 stores a 23-byte delegation marker as the account's code, and the marker would
+   count even if its target has no code. To exclude delegation, this RSKIP would need an explicit
+   exception; an implementation must not infer one. The key holder could then add or remove "has
+   code" with one transaction. RSKIP545 is not active on any network, and an implementation branch
+   exists. This draft should decide before RSKIP545 advances.
+2. **Should a failed refund leave an obligation that can be retried?** That needs rules for
+   accounting, fees, retries and resource limits. The same failure exists for every version, so an
+   RSKIP that covers all rejection releases is the better place.
+3. **Should a payer be able to authorise a credit when the refund fails, with another flag?**
+   Explicit authorisation would make the credit legitimate. It is a second payment policy, and its
+   need has not been shown.
+4. **Refund to the change output.** RSKIP ZZZ proposes it as a separate flag.
 
 ## References
 
@@ -397,20 +534,24 @@ and taproot refund addresses (Draft)
 address
 
 [3] [RSKIP41](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP41.md): Extended Bitcoin
-Bridge transactions (Draft), the refund "if no execution occurred"
+Bridge transactions (Draft)
 
 [4] [RSKIP181](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP181.md): Peg-in rejection
 events
 
-[5] [RSKIP379](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP379.md): Peg-out and
-migration transactions index, the current registration path
+[5] RSKIP692: Direct precompile call failure semantics (Draft); RSKIP197: Fix Precompile Calls Not
+Conforming With CALL Semantics
 
-[6] rskj VETIVER-9.0.4: `PegUtils.evaluatePegin`, `BridgeSupport.registerBtcTransaction`,
+[6] RSKIP545: Set Code for EOAs (Draft)
+
+[7] rskj VETIVER-9.0.4: `PegUtils.evaluatePegin`, `BridgeSupport.registerBtcTransaction`,
 `BridgeSupport.generateRejectionRelease`, `BridgeSupport.getFederationFromTxOutputs`,
-`ReleaseTransactionBuilder`, `Repository.getCode`
+`ReleaseTransactionBuilder`
 
-[7] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2 address derivation from the deploying
-contract, salt and initialisation code
+[8] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2
+
+[9] RSKIP199: registerBtcTransaction Is Public; RSKIP428: New pegout creation event including UTXO
+outpoint values; RSKIP459: Mark rejected peg-ins as processed
 
 ### Copyright
 
