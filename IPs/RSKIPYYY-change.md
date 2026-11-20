@@ -242,7 +242,7 @@ rules above exists yet.
 
 [1] RSKIP YYY: Peg-in instructions version 3, credit only if the destination has code (Draft)
 
-[2] [RSKIP704](https://github.com/rsksmart/RSKIPs/pull/704): Peg-in instructions version 2, segwit
+[2] [RSKIP704](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
 and taproot refund addresses (Draft)
 
 [3] [RSKIP181](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP181.md): Peg-in rejection

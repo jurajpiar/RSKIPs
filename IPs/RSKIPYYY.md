@@ -527,7 +527,7 @@ block 480 and larger header batches, which are test settings, not changes to the
 
 ## References
 
-[1] [RSKIP704](https://github.com/rsksmart/RSKIPs/pull/704): Peg-in instructions version 2, segwit
+[1] [RSKIP704](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
 and taproot refund addresses (Draft)
 
 [2] [RSKIP170](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP170.md): Peg-in to any
