@@ -418,9 +418,7 @@ covers all rejection releases.
 ## Evidence
 
 This table states the basis of each claim, so that a reader can see which parts are measured and
-which are not. "Measured" means a result from the reference branch described below. Two reviewers
-reproduced each measured result, but they used the same code and the same fixtures, so the
-reproductions are not independent evidence.
+which are not. "Measured" means a result from the reference branch described below.
 
 | Claim | Basis |
 | --- | --- |
@@ -451,8 +449,11 @@ of RSKIP XXX. The combined version-2 and version-3 branch is `pegin-instructions
 and does not conform to this one: it still refunds to the change output and credits the destination
 when the refund cannot be built.
 
-A local branch that is not published, `pegin-instructions-v3-strict-poc`, implements this draft. The
-`co.rsk.peg` unit tests pass on it (6,543 tests, 119 skipped).
+The branch
+[`pegin-instructions-v3-strict-poc`](https://github.com/jurajpiar/rskj/tree/pegin-instructions-v3-strict-poc),
+commit [`e7cdb50d4`](https://github.com/jurajpiar/rskj/commit/e7cdb50d4d6f2f8b78e5ca0e812431557eea52a6),
+implements this draft. The `co.rsk.peg` unit tests pass on it (6,544 tests at that commit;
+the 119 skipped tests are disabled upstream).
 
 In the block-execution tests, the Bitcoin side was written directly into the Bridge's state. An
 end-to-end run on regtest then used the branch with a federator node and Bitcoin Core: deposits
