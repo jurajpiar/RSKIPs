@@ -269,6 +269,7 @@ You can find an easily browseable version of this information [here](https://ips
 | 692 |[Direct Precompile Call Failure Semantics](IPs/RSKIP692.md)| 15-SEP-2026 | IS | Sec | Core | 2 | Draft |
 | 694 |[Network Upgrade: Cardamom](IPs/RSKIP694.md)| 2-OCT-2026 | AE | Usa, Sec | Core | 2 | Draft |
 | YYY |[Peg-in v3: credit only if the destination has code](IPs/RSKIPYYY.md)| 12-OCT-2026 | JP | Usa | Core | 2 | Draft |
+| ZZZ |[Peg-in v3: refund to the deposit's change output](IPs/RSKIPYYY-change.md)| 18-NOV-2026 | JP | Usa | Core | 2 | Draft |
 | 712 |[RSK typed structured data hashing and signing](IPs/RSKIP712.md)| 02-NOV-2020 | JL | ST | UI | 2 | Adopted |
 
 
