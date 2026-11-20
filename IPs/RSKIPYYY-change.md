@@ -22,7 +22,7 @@ in the payload.
 This RSKIP assigns bit 1 of the version-3 flags byte to `REFUND_TO_CHANGE`. With this flag, the
 payload carries no refund output. The refund goes to the deposit's change output: the one output of
 the deposit transaction that pays neither a live federation nor an `OP_RETURN`. If the deposit does
-not have exactly one such output, or its script is not one of the five types of RSKIP704, the
+not have exactly one such output, or its script is not one of the five types of RSKIP XXX, the
 deposit has no refund destination. It is then credited if the destination has code, and unrefundable
 if it has none.
 
@@ -80,8 +80,8 @@ removes:
 - every output that pays a federation that is live when the peg-in is registered;
 - every output whose script starts with `OP_RETURN`.
 
-Exactly one output must remain. Its script must be one of the five output types of RSKIP704
-(P2PKH, P2SH, P2WPKH, P2WSH, P2TR), in the exact form that RSKIP704 builds. That output is the
+Exactly one output must remain. Its script must be one of the five output types of RSKIP XXX
+(P2PKH, P2SH, P2WPKH, P2WSH, P2TR), in the exact form that RSKIP XXX builds. That output is the
 change output, and its script is the refund destination.
 
 If no output remains, if more than one remains, or if the remaining script is not one of the five
@@ -242,7 +242,7 @@ rules above exists yet.
 
 [1] RSKIP YYY: Peg-in instructions version 3, credit only if the destination has code (Draft)
 
-[2] [RSKIP704](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
+[2] [RSKIP XXX](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
 and taproot refund addresses (Draft)
 
 [3] [RSKIP181](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP181.md): Peg-in rejection
