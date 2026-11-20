@@ -1,6 +1,6 @@
 ---
 rskip: ZZZ
-title: Peg-in v3: refund to the deposit's change output
+title: "Peg-in v3: refund to the deposit's change output"
 description: A second version-3 flag under which the refund of a rejected peg-in is paid to the deposit's single change output instead of a refund output in the payload
 status: Draft
 purpose: Usa
@@ -38,7 +38,7 @@ for example a service that prepares the transaction for the payer to sign, a wro
 is invisible to the payer.
 
 The change output is different. It is an ordinary output of the transaction. A wallet that shows
-outputs shows it, and the payer signs all outputs together. A wallet that builds the transaction
+outputs shows it, and with the usual `SIGHASH_ALL` the payer signs all outputs together. A wallet that builds the transaction
 itself also checks that the change belongs to it. A wallet that signs a transaction built by an
 application checks this only if the application declares the output as change. The official peg-in
 application does not declare it: a Trezor or Ledger shows the change address as one more
@@ -114,6 +114,10 @@ builds the refund:
    with the new reason `7` (`NO_CHANGE_OUTPUT`). No release is built. The deposit is marked as
    processed.
 
+As in RSKIP YYY, the deposit is marked as processed even when RSKIP551 is active. The Powpeg node
+must not leave out a flagged deposit because it has no change output: whether it is credited depends
+on the destination's code at registration.
+
 The refund pays the deposit amount minus the release fee. It does not depend on the value of the
 change output.
 
@@ -172,6 +176,12 @@ Wallets must not use this flag before the activation height.
   third party, that payment's output becomes the refund destination. Consensus cannot tell change
   from a payment. A wallet must set `REFUND_TO_CHANGE` only when the remaining output is its own
   change address.
+- **Signatures must commit to every output.** The change output stays as the payer saw it only if
+  the signature of every input commits to all outputs: `SIGHASH_ALL`, or `SIGHASH_DEFAULT` for
+  taproot inputs. With `SIGHASH_NONE` or `SIGHASH_SINGLE`, outputs that a signature does not cover
+  can be replaced after signing, and the refund redirected. The same is true of the instructions
+  output of RSKIP YYY. A wallet must not set this flag unless every input is signed with such a
+  sighash type.
 - **Who composes the deposit.** A hostile composer can still make the "change" an address it
   controls. The payer can see that output before signing; a substituted refund output in the
   payload cannot be seen. A wallet marks the output as foreign only if honest composers declare
@@ -199,7 +209,7 @@ refund.
 
 | Claim | Basis |
 | --- | --- |
-| A refund that is due reaches the payer more often with the change output, when the deposit has one | Modelled from measured inputs: likely (0.81), by about one percentage point [−2.0, +6.6]. Between 0.73 and 0.94, depending on how often a refund field names an address the payer cannot use. Driven by honest errors, not by detection of a hostile composer |
+| A refund that is due reaches the payer more often with the change output, when the deposit has one | Modelled from measured inputs (see "Appendix: the loss model"): likely (0.81), by about one percentage point [−2.0, +6.6]. Between 0.73 and 0.94, depending on how often a refund field names an address the payer cannot use. Driven by honest errors, not by detection of a hostile composer |
 | Per flagged deposit, the payer loses less with this flag than with a refund output | Modelled: about even (0.46), with an advantage of −0.02 percentage points [−0.95, +1.18]. It depends on the share of flagged deposits whose composer does not check the rule, which is not measured. The flag is better than even below about 3% [0, 20] and probably worse at 10% (0.22). With the rule as first drafted the flag was worse (0.11) |
 | Most deposits have exactly one other output | Measured: 822 mainnet peg-ins, January 2023 to November 2026, eight federations. Exactly one: 72.9% [69.9, 75.7]. None: 26.6%. Two or more: 0.5%. Deposits with a payload, 2024 to 2026: without exactly one in 33.0% [29.0, 37.3] |
 | The single other output has one of the five types | Measured: 599 of 599 [99.6, 100] |
@@ -232,6 +242,8 @@ rules above exists yet.
 - **Unsupported script.** A remaining output with a bare multisig or P2PK script counts as no change
   output.
 - **Credit.** A valid payload with flags `03` to a destination with code is credited.
+- **Powpeg node.** A flagged deposit without a change output, to a destination with code, is
+  submitted by the Powpeg node and credited, with RSKIP551 active.
 - **Two federations.** A deposit that pays both live federations and has one other output, to a
   destination without code, is unrefundable as in RSKIP YYY.
 - **Before activation.** Flags `03` are a parse failure.
@@ -253,6 +265,57 @@ rules above exists yet.
 4. **Should outputs to recently retired federations also be removed?** That would stop a refund
    from paying a retired federation's script, but it needs a rule for how many past federations
    count. How often a deposit pays a retired federation was not measured.
+
+## Appendix: the loss model
+
+The two "Modelled" rows of "Evidence" come from a Monte Carlo model. This appendix gives enough to
+rebuild it.
+
+**Quantity.** The loss of a flagged deposit is the probability that the payer is not made whole
+without help: the deposit is neither credited to a destination with code nor refunded to an address
+the payer controls. The model compares flags `01` (refund output in the payload) with flags `03`
+(change output). The advantage is the loss with flags `01` minus the loss with flags `03`; a
+positive advantage favours this RSKIP.
+
+**Structure.**
+
+- With flags `01`, a refund misses the payer with probability `c_p = (1 − h)·e_f + h·(1 − d_f)`, and
+  the loss per deposit is `ρ·c_p`.
+- With flags `03`, a refund misses the payer with probability `c_c = (1 − h)·e_c + h·(1 − d_c)`. A
+  deposit breaks the change-output rule with probability `g`, and is then lost whenever a refund is
+  due. The loss per deposit is `g·ρ + (1 − g)·ρ·c_c`.
+- The first "Modelled" row of "Evidence" is `c_p − c_c`, and the second is the difference of the two
+  losses per deposit.
+
+**Parameters.** Counts from the survey are divided by a design effect of 4, because deposits cluster
+by composer, wallet and period. `LU(a, b)` is log-uniform between `a` and `b`.
+
+| Symbol | Meaning | Prior | Data | Posterior median |
+| --- | --- | --- | --- | --- |
+| `ρ` | Share of flagged deposits for which a refund is due | U(2%, 30%) | None | 16% |
+| `h` | Share of deposits from a hostile composer | LU(0.05%, 2%) | None | 0.32% |
+| `e_f` | The refund field names an address the payer cannot use, without hostility | LU(0.2%, 5%), multiplied by LU(1, 2.5) for the measured habit of writing a constant address | 117 of 335 refund fields carry one constant address | 1.6% |
+| `e_c` | The single other output is not the payer's, without hostility | LU(0.1%, 3%) | 8 of 533 single other outputs have a script type unlike every input | 0.52% |
+| `d_f` | The payer notices a substituted refund field | U(0, 20%) | None | 10% |
+| `d_c` | The payer notices a substituted change output | `v`·U(50%, 90%) + (1 − `v`)·U(5%, 35%) | Through `v` | 41% |
+| `v` | Share of flagged deposits whose signing wallet checks the change as its own | Beta(3, 2) | None of the official application's three signing integrations does; counted as two observations | 42% |
+| `g` | A flagged deposit breaks the change-output rule: `u·z + (1 − u)·s` | | | 1.2% |
+| `z` | A composer that ignores the rule produces no single change output | Beta(2, 10) | 149 of 451 deposits with a payload, 2024 to 2026 | 31% |
+| `u` | Share of flagged deposits from composers that do not check the rule | Lognormal, median 3%, 97th percentile 20%, with two weak likelihood ratios (0.6 to 1.0 and 1.0 to 1.5) | None | 2.9% |
+| `s` | Slip rate of a composer that checks the rule | LU(0.02%, 1%) | None | 0.14% |
+
+**Computation.** 200,000 draws with the Python standard library (seed `20261118`). The posterior of
+`e_c` uses importance sampling; the others are conjugate updates or adjusted priors. Intervals are 94% highest
+density intervals. The proportions in "Evidence" use Jeffreys intervals at 94%.
+
+**Break-even.** The two flags have equal losses when `g = (c_p − c_c) / (1 − c_c)`, which gives the
+share of non-checking composers `u = (g − s) / (z − s)` quoted in "Evidence" and in open question 1.
+
+**Sensitivity.** The probability that this flag loses less per deposit is 0.46 in the central case.
+It is 0.60 with a prior on `u` of median 1% (97th percentile 10%), and 0.24 with median 10%
+(97th percentile 40%). It is 0.33 if `e_f` keeps its prior, and 0.67 if the constant-address habit
+carries over strongly into version 3. With `z` taken from 2023 alone it is 0.62, and with `z` from
+2026 alone it is 0.45. `ρ`, `h`, `d_f`, `u` and `s` are not informed by any measurement.
 
 ## References
 
