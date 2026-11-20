@@ -205,14 +205,16 @@ transaction is.
   transaction this is their wallet; for a protocol building the payload on the user's behalf, the
   user's software must verify it, as it must verify the destination. This RSKIP does not change that
   trust boundary.
-- Refund size. The refund output is the deposit less the release fee (`ReleaseTransactionBuilder`
+- Refund size. The refund output is the deposit minus the release fee (`ReleaseTransactionBuilder`
   builds with `recipientsPayFees` and `emptyWallet`). Whether the net output clears the dust
   threshold of its type depends on the deposit, the release transaction's size and the fee-per-kb
   the federation has voted, which on mainnet may be set as high as 0.05 BTC per kB
   (`FeePerKbMainNetConstants.maxFeePerKb`); at that ceiling a minimum-value deposit does not cover a
   one-input release. Where the net output is dust or cannot be adjusted, the builder returns
-  `DUSTY_SEND_REQUESTED` or `COULD_NOT_ADJUST_DOWNWARDS` and the Bridge logs and panics, exactly as
-  for a version-1 refund today. This RSKIP neither adds nor removes that failure.
+  `DUSTY_SEND_REQUESTED` or `COULD_NOT_ADJUST_DOWNWARDS`. The Bridge then only logs the failure: it
+  queues no release and emits no `unrefundable_pegin`, so the deposit stays with the federation and
+  nothing on chain records that no refund will follow. This silent loss is the same for a version-1
+  refund today (RSKIP YYY measures it). This RSKIP neither adds nor removes it.
 - The powHSM needs no change. Its signing authorisation (`auth_tx.c`, `auth_receipt.c`, protocol v5)
   hashes the transaction's outputs as bytes into the transaction hash and the sighash and never
   interprets them; it authorises a signature when a Bridge `release_requested` log in a proved
@@ -222,6 +224,18 @@ transaction is.
 - A 32-byte program lengthens the `OP_RETURN` data to 58 bytes. Bitcoin Core 30.0 raised the default
   data-carrier limit to 100,000 bytes; 58 bytes also fits the 80-byte default of earlier versions,
   which operators can still enforce (`-datacarriersize=83`).
+
+## Implementation status
+
+A proof of concept is [jurajpiar/rskj#3](https://github.com/jurajpiar/rskj/pull/3), branch
+`pegin-instructions-v2-poc` at commit
+[`264e6ae3a`](https://github.com/jurajpiar/rskj/commit/264e6ae3ac2ec257d2229c05d1720dda65f75d13).
+It implements the payload, the five refund types and a release builder that pays an output script.
+It is not for production: since no rule in this RSKIP rejects a parsed payload, it contains a
+test-only seam that injects a refundable rejection, so that the refund path can be exercised.
+
+The same refund path is used by the draft RSKIP YYY branch, where P2WPKH and P2TR refunds were
+signed, broadcast and confirmed end to end on regtest.
 
 ## Test cases
 
@@ -233,7 +247,7 @@ transaction is.
 - Minimum: a version-2 payload with one federation output below the minimum is non-refundable, as in
   version 1.
 - Refund: with a refundable rejection reason injected (test-only until a rule exists), the release
-  pays an output of the declared script with the deposit less fee; for each of the five types the
+  pays an output of the declared script with the deposit minus the fee; for each of the five types the
   output is accepted by Bitcoin Core as standard (`testmempoolaccept`).
 - Fallback: a refundable rejection of a version-2 payload with no refund output from a P2PKH input
   refunds the sender-derived address; from a P2WPKH input emits `unrefundable_pegin` with
@@ -243,9 +257,6 @@ transaction is.
 
 ## Open questions
 
-- Whether to include the flags byte now (bit 0: credit only if the destination has code, else
-  refund), which would give this RSKIP an immediate effect, or keep it for a version 3 as drafted
-  here.
 - Sequencing with RSKIP690, which gives peg-outs key-derived segwit and taproot destinations and
   carries the library changes; whether this RSKIP should wait for it, or the two should share one
   network upgrade. A user-named peg-out destination (as opposed to a key-derived one) remains
