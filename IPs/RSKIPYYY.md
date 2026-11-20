@@ -7,7 +7,7 @@ purpose: Usa
 author: JP
 layer: Core
 complexity: 2
-requires: 704
+requires: XXX
 created: 12-OCT-26
 ---
 
@@ -23,7 +23,7 @@ credited, and the Bridge attempts a refund to a refund output that the flag make
 The refund is attempted, not guaranteed. When it cannot be made, the Bridge records the failure and
 the deposit stays with the federation, as happens today for a rejected peg-in of any version.
 
-A version-3 payload with the flag clear behaves as version 2 (RSKIP704).
+A version-3 payload with the flag clear behaves as version 2 (RSKIP XXX).
 
 ## What this proposal assumes
 
@@ -66,7 +66,7 @@ A version-3 peg-in instructions output is an `OP_RETURN` output of value zero. I
 - protocol version, 1 byte: `03`;
 - Rootstock destination address, 20 bytes;
 - flags, 1 byte;
-- optional refund output, encoded as in version 2 (RSKIP704): script type, 1 byte, then the
+- optional refund output, encoded as in version 2 (RSKIP XXX): script type, 1 byte, then the
   program, 20 or 32 bytes.
 
 The existing rules for finding the instructions output apply, including the limit of one `RSKT`
@@ -88,7 +88,7 @@ Valid combinations:
 | `01`  | 47, 59               | Mandatory                 |
 
 Everything else is a parse failure: a reserved bit set, any other length, `REQUIRE_CODE` with no
-refund output, an unknown refund type, or a program length that does not match its type in RSKIP704.
+refund output, an unknown refund type, or a program length that does not match its type in RSKIP XXX.
 
 A parse failure is handled as in version 2. The payload then supplies no refund destination. The
 Bridge attempts a refund to the sender-derived address if one exists, and otherwise emits
@@ -354,7 +354,7 @@ layout. No node will have accepted a payload whose meaning it did not know.
 ## Backwards compatibility
 
 This change is a hard fork. All full nodes must be updated. Version 3 must not be activated before
-RSKIP704, on which it depends.
+RSKIP XXX, on which it depends.
 
 Legacy peg-ins and versions 1 and 2 are not changed: their outcomes, events and receipt contents
 stay the same before and after activation.
@@ -390,7 +390,7 @@ refund", are the main security considerations. The remaining ones are:
   contracts, which exists today for all Bridge events. Consumers of Bridge events should confirm a
   queued release in Bridge state before they rely on `release_requested`.
 - **powHSM.** No change is expected. The device authorises a release by matching the transaction
-  hash to a `release_requested` log, and it does not interpret outputs (RSKIP704). This has not been
+  hash to a `release_requested` log, and it does not interpret outputs (RSKIP XXX). This has not been
   tested for this proposal.
 
 ## Related work: rejection releases in general
@@ -446,7 +446,7 @@ reproductions are not independent evidence.
 ## Implementation status
 
 The [version-2 PoC](https://github.com/jurajpiar/rskj/pull/3) implements the refund-script support
-of RSKIP704. The combined version-2 and version-3 branch is `pegin-instructions-v23-poc`, commit
+of RSKIP XXX. The combined version-2 and version-3 branch is `pegin-instructions-v23-poc`, commit
 [`caab00e26`](https://github.com/jurajpiar/rskj/commit/caab00e26). It implements an earlier draft
 and does not conform to this one: it still refunds to the change output and credits the destination
 when the refund cannot be built.
@@ -527,7 +527,7 @@ block 480 and larger header batches, which are test settings, not changes to the
 
 ## References
 
-[1] [RSKIP704](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
+[1] [RSKIP XXX](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
 and taproot refund addresses (Draft)
 
 [2] [RSKIP170](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP170.md): Peg-in to any
