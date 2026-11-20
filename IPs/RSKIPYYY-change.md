@@ -26,6 +26,10 @@ not have exactly one such output, or its script is not one of the five types of 
 deposit has no refund destination. It is then credited if the destination has code, and unrefundable
 if it has none.
 
+On the measured data the flag does not reduce the payer's expected loss: the model in "Evidence"
+puts it about even with a refund output in the payload. What the flag adds is that the refund
+destination is an output the payer's wallet shows before signing.
+
 ## Motivation
 
 The refund output of RSKIP YYY is written inside the `OP_RETURN` data. Almost no wallet decodes
@@ -41,7 +45,7 @@ application does not declare it: a Trezor or Ledger shows the change address as 
 recipient. A refund to the change output therefore goes to a destination that the payer's wallet
 has displayed. The wallet has checked it only when the composer declares it as change.
 
-On mainnet the change output is usually the payer's own. In 67% of deposits with a payload and one
+On mainnet the change output is usually the payer's own. In 67.4% of deposits with a payload and one
 other output, that output pays an address that also funded the deposit. The refund field is
 different: 35% of refund fields carry one constant address, used by 62 different senders, and 1%
 match a key that funded the deposit.
@@ -50,6 +54,12 @@ The data also shrinks from 47 or 59 bytes to 26 bytes.
 
 The flag does not replace the refund output of RSKIP YYY. About one deposit in three has no change
 output, and a wallet needs the refund output for those.
+
+The net effect is small and uncertain. Per flagged deposit, the model puts the payer's loss with
+this flag about even with a refund output: an advantage of −0.02 percentage points [−0.95, +1.18].
+The flag comes out ahead only if fewer than about 3% [0, 20] of flagged deposits come from composers
+that do not check the change-output rule (open question 1). The case for the flag is visibility of
+the refund destination, not a measured reduction in losses.
 
 ## Specification
 
@@ -98,8 +108,8 @@ A deposit without a change output is evaluated in the same way, except at the po
 builds the refund:
 
 1. If the destination has code, the peg-in is credited, as for any flagged peg-in.
-2. If the destination has no code and the deposit pays both live federations, it is unrefundable
-   with reason `5`, as in RSKIP YYY.
+2. If the destination has no code and the deposit pays both live federations, it is rejected with
+   reason `6` and is unrefundable with reason `5`, as in RSKIP YYY.
 3. Otherwise it is rejected with reason `6` (`PEGIN_DESTINATION_HAS_NO_CODE`) and is unrefundable
    with the new reason `7` (`NO_CHANGE_OUTPUT`). No release is built. The deposit is marked as
    processed.
@@ -167,10 +177,13 @@ Wallets must not use this flag before the activation height.
   payload cannot be seen. A wallet marks the output as foreign only if honest composers declare
   their change to the signing device (`address_n`, `changePath` or `bip32Derivation`). A composer
   that sets this flag should do so.
-- **Federation changes.** The set of live federations is read at registration. An output to a
-  federation that is no longer live at registration does not create a second change output in
-  practice: a deposit that pays only such a federation is not a peg-in at all, and a deposit that
-  pays both live federations is already unrefundable under RSKIP YYY.
+- **Federation changes.** The set of live federations is read at registration, and an output to a
+  federation that is no longer live is not removed. A deposit that pays only such a federation is
+  not a peg-in, and one that pays both live federations is unrefundable under RSKIP YYY. A deposit
+  that pays the active federation and a federation that is no longer live, for example from a wallet
+  that cached the old address, keeps the old output. With change, two outputs remain and the deposit
+  has no change output. Without change, the old federation's output is taken as the change output,
+  and the refund is paid to the old federation's script. See open question 4.
 - **A deposit without change can be lost.** A flagged deposit without exactly one change output has
   no refund destination. If its destination has no code, it is unrefundable. This is most likely
   when the payload is prepared before the payer's wallet selects its coins, because the composer
@@ -188,7 +201,7 @@ refund.
 | --- | --- |
 | A refund that is due reaches the payer more often with the change output, when the deposit has one | Modelled from measured inputs: likely (0.81), by about one percentage point [−2.0, +6.6]. Between 0.73 and 0.94, depending on how often a refund field names an address the payer cannot use. Driven by honest errors, not by detection of a hostile composer |
 | Per flagged deposit, the payer loses less with this flag than with a refund output | Modelled: about even (0.46), with an advantage of −0.02 percentage points [−0.95, +1.18]. It depends on the share of flagged deposits whose composer does not check the rule, which is not measured. The flag is better than even below about 3% [0, 20] and probably worse at 10% (0.22). With the rule as first drafted the flag was worse (0.11) |
-| Most deposits have exactly one other output | Measured: 822 mainnet peg-ins, January 2023 to November 2026, eight federations. Exactly one: 72.9% [69.9, 75.7]. None: 26.6%. Two or more: 0.5%. Deposits with a payload, 2024 to 2026: exactly one in 67.0% [62.7, 71.0] |
+| Most deposits have exactly one other output | Measured: 822 mainnet peg-ins, January 2023 to November 2026, eight federations. Exactly one: 72.9% [69.9, 75.7]. None: 26.6%. Two or more: 0.5%. Deposits with a payload, 2024 to 2026: without exactly one in 33.0% [29.0, 37.3] |
 | The single other output has one of the five types | Measured: 599 of 599 [99.6, 100] |
 | The single other output is usually the payer's | Measured indirectly, deposits with a payload: it pays an address that funded the deposit in 67.4% [63.5, 71.1], and has the script type of an input in 98.5% [97.2, 99.3] |
 | A refund field is often not the payer's today | Measured: 117 of 335 refund fields (34.9% [30.2, 39.9]) carry one address, used with 62 different funding addresses. 4 of 335 match a key that funded the deposit |
@@ -237,6 +250,9 @@ rules above exists yet.
    common wallets show or decode `RSKT` data was not surveyed.
 3. **Should the flag be allowed when the deposit pays a federation more than once?** The rule
    above allows several outputs to one federation, as RSKIP YYY does.
+4. **Should outputs to recently retired federations also be removed?** That would stop a refund
+   from paying a retired federation's script, but it needs a rule for how many past federations
+   count. How often a deposit pays a retired federation was not measured.
 
 ## References
 
