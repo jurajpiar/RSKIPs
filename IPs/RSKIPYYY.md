@@ -1,6 +1,6 @@
 ---
 rskip: YYY
-title: Peg-in v3: credit only if the destination has code
+title: "Peg-in v3: credit only if the destination has code"
 description: An opt-in flag under which a peg-in is credited only if its destination has code at registration; otherwise it is never credited and a refund is attempted
 status: Draft
 purpose: Usa
@@ -132,8 +132,17 @@ parsed version-3 payload is then evaluated in this order:
       `INSUFFICIENT_MONEY`, `COULD_NOT_ADJUST_DOWNWARDS`, `DUSTY_SEND_REQUESTED` and
       `EXCEED_MAX_TRANSACTION_SIZE`.
 
-In every outcome of step 3 the deposit is marked as processed, whether or not RSKIP459 is active. An
-unrefundable outcome creates no refund obligation and is not retried.
+In every outcome of step 3 the deposit is marked as processed, whether or not RSKIP459 or RSKIP551 is
+active. For these outcomes this RSKIP takes precedence over RSKIP551, which leaves rejected,
+unrefundable peg-ins unprocessed. Here "processed" means that the verdict is final, not that funds
+have moved. An unrefundable outcome creates no refund obligation and is not retried. RSKIP551 still
+applies to legacy, version-1 and version-2 peg-ins, and to version-3 peg-ins that are rejected before
+step 3.
+
+RSKIP551 also asks the Powpeg node not to submit peg-ins that it knows would be rejected and
+unrefundable. Whether a flagged peg-in is credited depends on the destination's code at
+registration, which the node cannot know in advance. The node must not leave out a parsed version-3
+peg-in with `REQUIRE_CODE` set on the grounds that it expects it to be unrefundable.
 
 This RSKIP keeps the builder's existing size checks. It does not add a check of the signed size. A
 release that is built is therefore not guaranteed to be relayed by Bitcoin nodes: see "Too large to
@@ -171,8 +180,10 @@ RSKIP, and it is the same for every Bridge method and every peg-in version:
   written directly.
 
 The draft RSKIP692 changes this for direct calls: after its activation, a failed direct call
-records no events and no state, and its receipt reports failure. Calls from a contract are not
-covered by RSKIP692 or by RSKIP197. See "Known limitation" in the security considerations.
+records no events and no state, and its receipt reports failure. For a call from a contract,
+RSKIP197 already rolls back the nested state changes, and RSKIP692 leaves that case to it. Neither
+says what happens to the events of the failed call, and the node keeps them. See "Known limitation"
+in the security considerations.
 
 ### Events
 
@@ -338,6 +349,15 @@ from the deposit's change output, and credited the destination when it could not
 proposal, RSKIP ZZZ, defines that form again without a credit and assigns it bit 1 of the flags
 byte. This RSKIP keeps bit 1 reserved.
 
+**Why an unrefundable verdict is marked as processed.** RSKIP551 leaves rejected, unrefundable
+peg-ins unprocessed, so that the Bridge stores nothing for a deposit whose funds did not move. For a
+flagged peg-in, an unprocessed deposit could be registered again after code appears at the
+destination, and then credited. Whoever made the refund fail, for example by composing a deposit
+with too many federation outputs, would then obtain the credit that the strict rule refuses. A
+protocol could also no longer refuse a late fulfilment once the Bridge reports the deposit as
+processed (guarantee 3). The cost is one storage entry for each such deposit, and these outcomes
+are rare.
+
 **Why the check is at registration.** Registration is the only moment at which the Bridge acts on a
 peg-in.
 
@@ -455,6 +475,9 @@ commit [`e7cdb50d4`](https://github.com/jurajpiar/rskj/commit/e7cdb50d4d6f2f8b78
 implements this draft. The `co.rsk.peg` unit tests pass on it (6,544 tests at that commit;
 the 119 skipped tests are disabled upstream).
 
+The branch is based on rskj master of 9 January 2026, before VETIVER-9.0.4, and does not include
+RSKIP551. It must be rebased before the rules above can be tested with RSKIP551 active.
+
 In the block-execution tests, the Bitcoin side was written directly into the Bridge's state. An
 end-to-end run on regtest then used the branch with a federator node and Bitcoin Core: deposits
 made on Bitcoin, registered by the federator, and refunds signed, broadcast and confirmed. Four
@@ -487,8 +510,8 @@ block 480 and larger header batches, which are test settings, not changes to the
 - **Two federations.** A flagged deposit that pays the active and the retiring federation, to a
   destination without code, emits `rejected_pegin` (`6`) and `unrefundable_pegin` (`5`) and queues
   nothing. Test federations of the same format and of different formats, with no shared members and
-  with shared members. Test with RSKIP459 active and inactive. The same deposit to a destination
-  with code is credited.
+  with shared members. Test with RSKIP459 active and inactive, and with RSKIP551 active. The same
+  deposit to a destination with code is credited.
 - **Internal error.** Inject two faults: the builder returns `UTXO_PROVIDER_EXCEPTION`, and the
   builder throws. In each case the deposit is not marked as processed, nothing is queued, no balance
   or Bridge storage changes, and the receipt contains no Bridge log. After the fault is removed, a
@@ -501,6 +524,9 @@ block 480 and larger header batches, which are test settings, not changes to the
 - **Too large to relay.** A release that the builder accepts and that Bitcoin Core rejects as
   `tx-size` after signing is queued at registration. A later relay failure produces no
   `unrefundable_pegin` and no credit. Distinguish this from the builder's own size failure.
+- **RSKIP551.** With RSKIP551 active, both unrefundable outcomes of step 3 mark the deposit as
+  processed, and registering it again after code is deployed at the destination has no effect.
+  Unrefundable legacy, version-1 and version-2 peg-ins stay unprocessed, as RSKIP551 requires.
 - **Final verdict.** After a refund is queued, deploy code at the destination and register again.
   The peg-in stays rejected and the destination is not credited.
 - **Flag clear.** A version-3 peg-in with flags `00` to a destination without code is credited.
@@ -552,7 +578,8 @@ Conforming With CALL Semantics
 [8] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2
 
 [9] RSKIP199: registerBtcTransaction Is Public; RSKIP428: New pegout creation event including UTXO
-outpoint values; RSKIP459: Mark rejected peg-ins as processed
+outpoint values; RSKIP459: Mark rejected peg-ins as processed;
+[RSKIP551](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP551.md): Deprecate RSKIP459
 
 ### Copyright
 
