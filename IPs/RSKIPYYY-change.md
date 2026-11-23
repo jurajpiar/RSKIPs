@@ -45,8 +45,9 @@ application does not declare it: a Trezor or Ledger shows the change address as 
 recipient. A refund to the change output therefore goes to a destination that the payer's wallet
 has displayed. The wallet has checked it only when the composer declares it as change.
 
-On mainnet the change output is usually the payer's own. In 67.4% of deposits with a payload and one
-other output, that output pays an address that also funded the deposit. The refund field is
+On mainnet the change output usually belongs to someone who signed the deposit. In 67.4% of deposits
+with a payload and one other output, that output pays an address that also funded one of the
+deposit's inputs, so it is controlled by a signer of the deposit, normally the payer. The refund field is
 different: 35% of refund fields carry one constant address, used by 62 different senders, and 1%
 match a key that funded the deposit.
 
@@ -199,6 +200,11 @@ Wallets must not use this flag before the activation height.
   when the payload is prepared before the payer's wallet selects its coins, because the composer
   cannot know whether the wallet will produce change. A wallet should check the rule before signing,
   and should not set the flag for a deposit without change.
+- **The change script is reused.** The refund arrives days after the deposit, usually after the
+  payer has spent the change. A script that is safe to spend only once, such as one locked by a hash
+  preimage alone, can then be spent by anyone who saw the first spend. A wallet should set the flag
+  only when the change script stays safe to receive funds after it has been spent. The same is true
+  of a refund output in the payload that the payer spends from in the meantime.
 - **Privacy.** A refund to the change output links the refund to the deposit. The same is true of
   most refund outputs written in a payload.
 
@@ -213,7 +219,7 @@ refund.
 | Per flagged deposit, the payer loses less with this flag than with a refund output | Modelled: about even (0.46), with an advantage of −0.02 percentage points [−0.95, +1.18]. It depends on the share of flagged deposits whose composer does not check the rule, which is not measured. The flag is better than even below about 3% [0, 20] and probably worse at 10% (0.22). With the rule as first drafted the flag was worse (0.11) |
 | Most deposits have exactly one other output | Measured: 822 mainnet peg-ins, January 2023 to November 2026, eight federations. Exactly one: 72.9% [69.9, 75.7]. None: 26.6%. Two or more: 0.5%. Deposits with a payload, 2024 to 2026: without exactly one in 33.0% [29.0, 37.3] |
 | The single other output has one of the five types | Measured: 599 of 599 [99.6, 100] |
-| The single other output is usually the payer's | Measured indirectly, deposits with a payload: it pays an address that funded the deposit in 67.4% [63.5, 71.1], and has the script type of an input in 98.5% [97.2, 99.3] |
+| The single other output is usually controlled by a signer of the deposit | Measured as address reuse, deposits with a payload: it pays an address that funded an input in 67.4% [63.5, 71.1]. It has the script type of an input in 98.5% [97.2, 99.3], which is consistent with ownership but does not show it. Neither measure tells the payer from a co-signer |
 | A refund field is often not the payer's today | Measured: 117 of 335 refund fields (34.9% [30.2, 39.9]) carry one address, used with 62 different funding addresses. 4 of 335 match a key that funded the deposit |
 | The signing wallet checks the change as its own | Not with the official peg-in application (source of 2wp-app): Trezor outputs carry no `address_n`, Ledger receives no `changePath`, PSBT outputs carry no `bip32Derivation`. Other composers were not surveyed |
 | Standard wallets do not show `OP_RETURN` refund data | General knowledge of wallet behaviour. Not surveyed |
@@ -283,6 +289,10 @@ positive advantage favours this RSKIP.
   due. The loss per deposit is `g·ρ + (1 − g)·ρ·c_c`.
 - The first "Modelled" row of "Evidence" is `c_p − c_c`, and the second is the difference of the two
   losses per deposit.
+- Failures common to both flags, a deposit that pays two federations and a refund that cannot be
+  built, are left out. If they happen with probability `f`, independently of `g`, the difference of
+  the two losses is multiplied by `1 − f`. Its sign, the probabilities in "Evidence" and the
+  break-even do not change.
 
 **Parameters.** Counts from the survey are divided by a design effect of 4, because deposits cluster
 by composer, wallet and period. `LU(a, b)` is log-uniform between `a` and `b`.
@@ -300,6 +310,15 @@ by composer, wallet and period. `LU(a, b)` is log-uniform between `a` and `b`.
 | `z` | A composer that ignores the rule produces no single change output | Beta(2, 10) | 149 of 451 deposits with a payload, 2024 to 2026 | 31% |
 | `u` | Share of flagged deposits from composers that do not check the rule | Lognormal, median 3%, 97th percentile 20%, with two weak likelihood ratios (0.6 to 1.0 and 1.0 to 1.5) | None | 2.9% |
 | `s` | Slip rate of a composer that checks the rule | LU(0.02%, 1%) | None | 0.14% |
+
+**The two error rates.** The update of `e_c` treats a single other output whose script type differs
+from every input as a sign that it is not the payer's. The probability of such a mismatch is
+`e_c·a + (1 − e_c)·b`, with `a` drawn from U(30%, 90%) for outputs that are not the payer's and `b`
+from U(0, 3%) for outputs that are. Each prior draw of `e_c` is weighted by the binomial likelihood
+of 8 mismatches in 533, after the design effect. The data bound `e_c` rather than measure it: the
+update moves its median from 0.55% to 0.52%. `e_f` is not updated by the constant-address count; the
+count only motivates the multiplier on its prior, and "Sensitivity" gives the results without the
+multiplier and with a stronger carry-over.
 
 **Computation.** 200,000 Monte Carlo draws. The posterior of
 `e_c` uses importance sampling; the others are conjugate updates or adjusted priors. Intervals are 94% highest
