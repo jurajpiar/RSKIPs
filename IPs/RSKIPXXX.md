@@ -108,15 +108,12 @@ conditions below.
 
 ### Building the refund
 
-In every released rskj (through VETIVER-9.0.4) refund transactions are built by
-`ReleaseTransactionBuilder` to an `Address`, bitcoinj-thin's `Address` represents P2PKH and P2SH
-only, and `ScriptBuilder.createOutputScript` has no witness-program form. RSKIP690's implementation
-branches (rskj `add-pegout-address-type` and successors; bitcoinj-thin
-`add-segwit-address-and-network-hrp`, `add-taproot-output-key-derivation`,
-`dispatch-create-output-script-by-address-type`, unreleased as `0.14.4-rsk-19`) split `Address` into
-`LegacyAddress` and `SegwitAddress`, add `Taproot` and `Bech32`, and build P2WPKH and P2TR output
-scripts; in those branches the peg-in refund and sender addresses are typed `LegacyAddress`, so the
-restriction this RSKIP lifts is made explicit rather than removed. This RSKIP requires, on top of
+In released rskj, refund transactions are built by `ReleaseTransactionBuilder` to an `Address`,
+bitcoinj-thin's `Address` represents P2PKH and P2SH only, and `ScriptBuilder.createOutputScript`
+has no witness-program form. RSKIP690's unreleased implementation work in rskj and bitcoinj-thin
+splits `Address` into `LegacyAddress` and `SegwitAddress`, adds `Taproot` and `Bech32`, and builds
+P2WPKH and P2TR output scripts; in that work the peg-in refund and sender addresses are typed
+`LegacyAddress`, so the restriction this RSKIP lifts is made explicit rather than removed. This RSKIP requires, on top of
 that work:
 
 - P2WSH (`OP_0 <32>`) output scripts, which RSKIP690 does not need since no key derives one;
@@ -215,7 +212,7 @@ transaction is.
   queues no release and emits no `unrefundable_pegin`, so the deposit stays with the federation and
   nothing on chain records that no refund will follow. This silent loss is the same for a version-1
   refund today (RSKIP YYY measures it). This RSKIP neither adds nor removes it.
-- The powHSM needs no change. Its signing authorisation (`auth_tx.c`, `auth_receipt.c`, protocol v5)
+- The powHSM needs no change. Its signing authorisation (protocol v5)
   hashes the transaction's outputs as bytes into the transaction hash and the sighash and never
   interprets them; it authorises a signature when a Bridge `release_requested` log in a proved
   receipt names that transaction hash. A refund to a witness-program output is signed exactly as a
@@ -227,10 +224,7 @@ transaction is.
 
 ## Implementation status
 
-A proof of concept is [jurajpiar/rskj#3](https://github.com/jurajpiar/rskj/pull/3), branch
-`pegin-instructions-v2-poc` at commit
-[`264e6ae3a`](https://github.com/jurajpiar/rskj/commit/264e6ae3ac2ec257d2229c05d1720dda65f75d13).
-It implements the payload, the five refund types and a release builder that pays an output script.
+A proof of concept is [jurajpiar/rskj#3](https://github.com/jurajpiar/rskj/pull/3). It implements the payload, the five refund types and a release builder that pays an output script.
 It is not for production: since no rule in this RSKIP rejects a parsed payload, it contains a
 test-only seam that injects a refundable rejection, so that the refund path can be exercised.
 
@@ -284,7 +278,8 @@ migration transactions index, the current registration path
 
 [6] [RSKIP690](https://github.com/rsksmart/RSKIPs/pull/690): Pegouts to different bitcoin address
 types (Draft); rskj branch `add-pegout-address-type`, bitcoinj-thin branches
-`add-segwit-address-and-network-hrp` and `add-taproot-output-key-derivation`, checked 12-OCT-26
+`add-segwit-address-and-network-hrp`, `add-taproot-output-key-derivation` and
+`dispatch-create-output-script-by-address-type`
 
 [7] rskj VETIVER-9.0.4: `PeginInstructionsVersion1`, `PegUtils.evaluatePegin` and
 `allUTXOsToFedAreAboveMinimumPeginValue`, `BtcLockSenderProvider` and `P2shP2wshBtcLockSender`,
