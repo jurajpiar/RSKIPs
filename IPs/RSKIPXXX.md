@@ -676,8 +676,9 @@ Not Conforming With CALL Semantics;
 [`rejection-release-failures`](https://github.com/jurajpiar/RSKIPs/tree/rejection-release-failures)
 of jurajpiar/RSKIPs
 
-[10] [RSKIP ZZZ](https://github.com/jurajpiar/RSKIPs/pull/4): Peg-in version 2, refund to the
-deposit's change output (Draft)
+[10] Peg-in version 2, refund to the deposit's change output: the draft and its loss model, kept
+for the record on branch [`rskip-zzz`](https://github.com/jurajpiar/RSKIPs/tree/rskip-zzz) of
+jurajpiar/RSKIPs. It is not proposed
 
 [11] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2
 
