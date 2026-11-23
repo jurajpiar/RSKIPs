@@ -187,14 +187,14 @@ refunded today and is unrefundable after activation.
   test `experiment_legacyPeginToActiveAndRetiredFederation_registeredAfterTheChange`,
   at [commit `7c4618d95`](https://github.com/jurajpiar/rskj/commit/7c4618d950a8118de050fd48f0ff74f8f4a812de) of
   the proof of concept (see "Evidence"). The retired federation is then no longer live, so the
-  registration path of RSKIP379 [6] does not count its outputs as federation outputs. The Bridge evaluates the deposit
-  on the outputs that pay the active federation alone.
-  If the deposit is rejected again and has a refund address, the rejection release spends only
-  those outputs, and the deposit is marked as processed. The share that was paid to the retired
-  federation stays at its old address. The Bridge does not register it, and nothing in the Bridge
-  can move it. The draft RSKIP ZZZ, a refund to the deposit's change output, uses the same reading
-  to find the change output: a federation that is not live has no federation outputs. The two
-  drafts therefore share one definition.
+  registration path of RSKIP379 [6] does not count its outputs as federation outputs. The Bridge
+  evaluates the deposit on the outputs that pay the active federation alone. If the deposit is
+  rejected again and has a refund address, the rejection release spends only those outputs, and the
+  deposit is marked as processed. The share that was paid to the retired federation stays at its
+  old address. The Bridge does not register it, and nothing in the Bridge can move it. The draft
+  RSKIP ZZZ, a refund to the deposit's change output, uses the same reading to find the change
+  output: a federation that is not live has no federation outputs. The two drafts therefore share
+  one definition.
 - **Too large to relay.** A rejection release that the builder accepts can still exceed Bitcoin's
   standard transaction size once signed. The Bridge then announces a release that nodes with
   default policy do not relay. This RSKIP does not change that.
