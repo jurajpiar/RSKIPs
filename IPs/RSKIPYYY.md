@@ -183,9 +183,11 @@ refunded today and is unrefundable after activation.
   other unrefundable peg-ins.
 - **Registration after the federation change.** A deposit that paid both live federations stays
   unprocessed and can be registered again after the change ends. The outcome below follows from
-  the code [5], and an experiment measured it for a registration with one live federation (see
-  "Evidence"). The retired federation is then no longer live, so the registration path of
-  RSKIP379 [6] does not count its outputs as federation outputs. The Bridge evaluates the deposit
+  the code [5], and an experiment measured it for a registration with one live federation: the
+  test `experiment_legacyPeginToActiveAndRetiredFederation_registeredAfterTheChange`,
+  at [commit `7c4618d95`](https://github.com/jurajpiar/rskj/commit/7c4618d950a8118de050fd48f0ff74f8f4a812de) of
+  the proof of concept (see "Evidence"). The retired federation is then no longer live, so the
+  registration path of RSKIP379 [6] does not count its outputs as federation outputs. The Bridge evaluates the deposit
   on the outputs that pay the active federation alone.
   If the deposit is rejected again and has a refund address, the rejection release spends only
   those outputs, and the deposit is marked as processed. The share that was paid to the retired
@@ -215,7 +217,7 @@ refunded today and is unrefundable after activation.
 | Two-federation signing results | Measured with regtest deposits and Bitcoin Core 29.4 |
 | A peg-in without instructions to two same-format federations is queued | Measured through `registerBtcTransaction`. The test checked signature validity itself; Bitcoin Core did not |
 | Mainnet federation is 5 of 9, P2SH-P2WSH | Measured from the Bridge's state. The federation live in 2023 used the legacy P2SH format |
-| Outcome of a registration after the federation change | Read from rskj 9.0.4 (`generateRejectionRelease`, `computeTotalAmountSent`, which use the live federations only), and measured in a unit-level experiment through `registerBtcTransaction`. A deposit from a P2SH multisig sender paid 25,000,000 sat to the active federation and the same to a federation that was not live. The Bridge emitted `rejected_pegin` and `release_requested`, queued one release with one input that spends the active federation's output, and marked the deposit as processed. The release pays 24,967,300 sat. The experiment registered the deposit once, with one live federation; the earlier registration during the change was not run, because no implementation of this RSKIP exists. Not run on regtest |
+| Outcome of a registration after the federation change | Read from rskj 9.0.4 (`generateRejectionRelease`, `computeTotalAmountSent`, which use the live federations only), and measured in a unit-level experiment through `registerBtcTransaction`: the test `experiment_legacyPeginToActiveAndRetiredFederation_registeredAfterTheChange` at [commit `7c4618d95`](https://github.com/jurajpiar/rskj/commit/7c4618d950a8118de050fd48f0ff74f8f4a812de). A deposit from a P2SH multisig sender paid 25,000,000 sat to the active federation and the same to a federation that was not live. The Bridge emitted `rejected_pegin` and `release_requested`, queued one release with one input that spends the active federation's output, and marked the deposit as processed. The release pays 24,967,300 sat. The experiment registered the deposit once, with one live federation; the earlier registration during the change was not run, because no implementation of this RSKIP exists. Not run on regtest |
 | Mainnet fee history | Sampled from Bridge state at intervals, so a short spike could be missing. The fee per kilobyte was 500,000 sat until 2018 and is 8,000 at the time of writing. Its highest sampled value since 2018 was 480,000, for about a day in 2023, while the federation used the legacy P2SH format. At that value the refund of a minimum deposit returns 12 % of it |
 
 **Fee.** The fee is the federation's voted fee per kilobyte multiplied by the size the builder
@@ -260,7 +262,8 @@ of a fork of rskj: `V3StrictRefundSizeExperimentTest`,
 That proof of concept emits the two new reasons only for flagged peg-ins, and it marks those
 deposits as processed. The experiment on registration after a federation change,
 `experiment_legacyPeginToActiveAndRetiredFederation_registeredAfterTheChange` in the same test
-class, was added after that commit and is not yet published.
+class, was added after that commit, at
+[commit `7c4618d95`](https://github.com/jurajpiar/rskj/commit/7c4618d950a8118de050fd48f0ff74f8f4a812de).
 
 ## Test cases
 
