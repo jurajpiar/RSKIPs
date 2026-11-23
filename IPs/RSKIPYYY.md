@@ -266,27 +266,21 @@ is 5,000,000 sat/kB, so both thresholds are inside the permitted range. A refund
 becomes unbuildable slightly earlier: from 1,470,817 sat/kB for the first row and from 536,864
 sat/kB for the second. The table's rates are examples, not consensus constants.
 
-The values voted on mainnet so far, read from the Bridge's state on 18 November 2026, are: 500,000
-sat/kB from genesis until August 2018; 8,000 since October 2025; and in between, a highest value of
-480,000 (8 May 2023, for about a day), with 473,000 (20 April 2024, for about a day) and 394,000 (16
-December 2023) next. From April 2021 to July 2024, 3.2 % of blocks had a value of 200,000 or more.
-No value so far has come near the threshold of the P2SH-P2WSH format. The federation that was live
-at each of those three dates used the legacy P2SH format, as read from the Bridge's state; the
-current federation uses P2SH-P2WSH. For that format, the values of 2023 and 2024 came within 13 % of
-the threshold: at 480,000 sat/kB, a refund of a minimum deposit returns 12 % of it. The state was
-sampled about every 17 hours from April 2021 to July 2024 and about every week at other times, so a
-shorter spike could be missing.
+On mainnet, `feePerKb` was 500,000 sat/kB until 2018 and is 8,000 at the time of writing. Since 2018
+its highest value was 480,000, for about a day in 2023, while the federation used the legacy P2SH
+format. No value so far has come near the threshold of the P2SH-P2WSH format that the federation
+uses now. For the legacy format, the 2023 value came within 12 % of the threshold: at 480,000 sat/kB,
+a refund of a minimum deposit returns 12 % of it. The history was read from the Bridge's state at
+intervals, so a short spike could be missing.
 
 **Too many inputs.** Each federation output of the deposit becomes one input of the refund. The
 builder rejects the release at 196 inputs for the legacy format and at 2,438 for the P2SH-P2WSH
 format. The builder measures the release before signatures are added.
 
 **Too large to relay.** The signed release is larger than the release the builder measured. Bitcoin
-Core 29.4 rejected, with `tx-size`, a signed refund with 150 legacy inputs (130,157 vbytes) and one
-with 500 P2SH-P2WSH inputs (141,231 vbytes). The builder accepted both. In the test fixture, Bitcoin
-Core rejects the signed refund from 116 legacy inputs (100,695 vbytes) and from 354 P2SH-P2WSH
-inputs (100,007 vbytes), and does not reject it for its size at 115 and 353 inputs. Signature
-lengths vary, so the limit can move by an input or two. In this case the Bridge emits
+Core rejects the signed refund with `tx-size` from 116 legacy inputs and from 354 P2SH-P2WSH inputs,
+while the builder accepts up to 195 and 2,437. Signature lengths vary, so the limit can move by an
+input or two. In this case the Bridge emits
 `release_requested` for a transaction that nodes with default policy do not relay. This behaviour
 exists today for every rejection release. This RSKIP does not change it: see "Related work".
 
@@ -428,7 +422,7 @@ covers all rejection releases.
   need a size estimate and a limit that are fixed in consensus. The relay-policy settings of a local
   Bitcoin node must not decide a consensus result.
 - **A legacy peg-in that pays two federations of the same format is refunded.** The existing rule
-  refuses the refund only when the formats differ. In a test on the reference branch, such a deposit
+  refuses the refund only when the formats differ. In a test, such a deposit
   from a P2SH multisig sender emitted `release_requested`, and the release was queued. With no
   shared member keys it could not be completed. With 8 of 9 keys shared it was valid when the shared
   members signed first, and the Bridge emitted `release_btc` for an invalid transaction when the
@@ -456,37 +450,25 @@ which are not. "Measured" means a result from the reference branch described bel
 | Events survive an internal error after the release is built | Measured, with injected faults in loading and saving the release queue |
 | A failed save in a direct call is committed part-way | Measured: one storage cell changed. Node behaviour, see RSKIP692 |
 | No input causes such an internal error | Reasoned from the code. Not proven |
-| Mainnet federation is 5 of 9, P2SH-P2WSH | Measured from the Bridge's state on 18 November 2026: 5 of 9, with a 3-of-4 emergency branch. The federations live in May 2023, December 2023 and April 2024 used the legacy P2SH format |
+| Mainnet federation is 5 of 9, P2SH-P2WSH | Measured from the Bridge's state. The federation live in 2023 used the legacy P2SH format |
 | Mainnet `feePerKb` history | Measured from the Bridge's state on mainnet; spikes shorter than the sampling interval could be missing |
 | A rejected peg-in is refunded end to end | Measured on regtest with a running federator and Bitcoin Core: P2WPKH and P2TR refunds confirmed, each paying the deposit minus the fee. A peg-in to a destination with code was credited |
-| A refund can be signed by a powHSM | Measured on regtest with the powHSM 5.6.3 emulator (TCPSigner) and one federator: one signature, refund confirmed. Not tested with a live federation or a physical powHSM |
+| A refund can be signed by a powHSM | Measured on regtest with the powHSM emulator and one federator: one signature, refund confirmed. Not tested with a live federation or a physical powHSM |
 
 ## Implementation status
 
-The [version-2 PoC](https://github.com/jurajpiar/rskj/pull/3) implements the refund-script support
-of RSKIP XXX. The combined version-2 and version-3 branch is `pegin-instructions-v23-poc`, commit
-[`caab00e26`](https://github.com/jurajpiar/rskj/commit/caab00e26). It implements an earlier draft
-and does not conform to this one: it still refunds to the change output and credits the destination
-when the refund cannot be built.
-
 The branch
-[`pegin-instructions-v3-strict-poc`](https://github.com/jurajpiar/rskj/tree/pegin-instructions-v3-strict-poc),
-commit [`15d5bc397`](https://github.com/jurajpiar/rskj/commit/15d5bc397ba0f33a78c046fa99baad0fda9e94a3),
-implements this draft on VETIVER-9.0.4, including the precedence over RSKIP551. The `co.rsk.peg`
-unit tests pass on it (6,668 tests at that commit; the 119 skipped tests are disabled upstream), as
-does the full `rskj-core` suite.
+[`pegin-instructions-v3-strict-poc`](https://github.com/jurajpiar/rskj/tree/pegin-instructions-v3-strict-poc)
+implements this draft, including RSKIP XXX and the precedence over RSKIP551, on rskj VETIVER-9.0.4.
+Its unit tests pass.
 
 In the block-execution tests, the Bitcoin side was written directly into the Bridge's state. An
-end-to-end run on regtest then used an earlier version of the branch, based on rskj master of
-9 January 2026 and without RSKIP551 (commit
-[`e7cdb50d4`](https://github.com/jurajpiar/rskj/commit/e7cdb50d4d6f2f8b78e5ca0e812431557eea52a6)),
-with a federator node and Bitcoin Core: deposits
+end-to-end run on regtest then used an earlier version of the branch with a federator node and Bitcoin Core: deposits
 made on Bitcoin, registered by the federator, and refunds signed, broadcast and confirmed. Four
 scenarios passed: P2WPKH and P2TR refunds signed with software keys, a credit to a destination with
-code, and a P2WPKH refund signed by the powHSM 5.6.3 emulator. In each refund the Bridge emitted
+code, and a P2WPKH refund signed by the powHSM emulator. In each refund the Bridge emitted
 `rejected_pegin` (reason 6), `release_requested` and `pegout_transaction_created` in the block that
-registered the deposit, and `release_btc` once signed. The emulator needed a checkpoint above
-block 480 and larger header batches, which are test settings, not changes to the branch.
+registered the deposit, and `release_btc` once signed.
 
 ## Test cases
 
@@ -543,8 +525,7 @@ block 480 and larger header batches, which are test settings, not changes to the
    draft RSKIP545 stores a 23-byte delegation marker as the account's code, and the marker would
    count even if its target has no code. To exclude delegation, this RSKIP would need an explicit
    exception; an implementation must not infer one. The key holder could then add or remove "has
-   code" with one transaction. RSKIP545 is not active on any network, and an implementation branch
-   exists. This draft should decide before RSKIP545 advances.
+   code" with one transaction. RSKIP545 is not active on any network. This draft should decide before RSKIP545 advances.
 2. **Should a failed refund leave an obligation that can be retried?** That needs rules for
    accounting, fees, retries and resource limits. The same failure exists for every version, so an
    RSKIP that covers all rejection releases is the better place.
