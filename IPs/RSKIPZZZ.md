@@ -1,25 +1,25 @@
 ---
 rskip: ZZZ
-title: "Peg-in v3: refund to the deposit's change output"
-description: A second version-3 flag under which the refund of a rejected peg-in is paid to the deposit's single change output instead of a refund output in the payload
+title: "Peg-in version 2: refund to the deposit's change output"
+description: A second flag of the version-2 peg-in instructions, under which the refund of a rejected peg-in is paid to the deposit's single change output instead of a refund output in the payload
 status: Draft
 purpose: Usa
 author: JP
 layer: Core
 complexity: 2
-requires: YYY
+requires: XXX
 created: 18-NOV-26
 ---
 
-# Peg-in instructions version 3: refund to the deposit's change output
+# Peg-in instructions version 2: refund to the deposit's change output
 
 ## Abstract
 
-RSKIP YYY defines peg-in instructions version 3 and its `REQUIRE_CODE` flag. A flagged peg-in to a
+RSKIP XXX defines peg-in instructions version 2 and its `CODE_REQUIRED` flag. A flagged peg-in to a
 destination without code is rejected, and the Bridge attempts a refund to a refund output written
 in the payload.
 
-This RSKIP assigns bit 1 of the version-3 flags byte to `REFUND_TO_CHANGE`. With this flag, the
+This RSKIP assigns bit 1 of the version-2 flags byte to `REFUND_TO_CHANGE`. With this flag, the
 payload carries no refund output. The refund goes to the deposit's change output: the one output of
 the deposit transaction that pays neither a live federation nor an `OP_RETURN`. If the deposit does
 not have exactly one such output, or its script is not one of the five types of RSKIP XXX, the
@@ -32,7 +32,7 @@ destination is an output the payer's wallet shows before signing.
 
 ## Motivation
 
-The refund output of RSKIP YYY is written inside the `OP_RETURN` data. Almost no wallet decodes
+The refund output of RSKIP XXX is written inside the `OP_RETURN` data. Almost no wallet decodes
 that data, so the payer cannot see where a refund would go. If someone else builds the payload,
 for example a service that prepares the transaction for the payer to sign, a wrong refund output
 is invisible to the payer.
@@ -53,7 +53,7 @@ match a key that funded the deposit.
 
 The data also shrinks from 47 or 59 bytes to 26 bytes.
 
-The flag does not replace the refund output of RSKIP YYY. About one deposit in three has no change
+The flag does not replace the refund output of RSKIP XXX. About one deposit in three has no change
 output, and a wallet needs the refund output for those.
 
 The net effect is small and uncertain. Per flagged deposit, the model puts the payer's loss with
@@ -68,19 +68,19 @@ the refund destination, not a measured reduction in losses.
 
 | Bit | Name               | Meaning                                                        |
 | --- | ------------------ | -------------------------------------------------------------- |
-| 0   | `REQUIRE_CODE`     | As in RSKIP YYY                                                |
+| 0   | `CODE_REQUIRED`    | As in RSKIP XXX                                                |
 | 1   | `REFUND_TO_CHANGE` | The refund is paid to the deposit's change output              |
-| 2–7 | reserved           | Must be zero                                                   |
+| 2 to 7 | reserved           | Must be zero                                                   |
 
 The valid combinations become:
 
 | Flags | Data lengths (bytes) | Refund destination                     |
 | ----- | -------------------- | -------------------------------------- |
-| `00`  | 26, 47, 59           | Optional refund output, as in version 2 |
+| `00`  | 26, 47, 59           | Optional refund output, as in RSKIP XXX |
 | `01`  | 47, 59               | Refund output in the payload           |
 | `03`  | 26                   | The deposit's change output            |
 
-Everything else is a parse failure. In particular, `REFUND_TO_CHANGE` without `REQUIRE_CODE`
+Everything else is a parse failure. In particular, `REFUND_TO_CHANGE` without `CODE_REQUIRED`
 (flags `02`) is a parse failure, and so is `REFUND_TO_CHANGE` with a refund output in the payload.
 
 ### The change output
@@ -100,22 +100,22 @@ types, the deposit has no change output. The payload is still valid.
 
 ### Evaluation
 
-A payload with flags `03` is evaluated as a payload with flags `01` in RSKIP YYY, with the change
-output in place of the payload's refund output. All rules of RSKIP YYY apply unchanged: the code
+A payload with flags `03` is evaluated as a payload with flags `01` in RSKIP XXX, with the change
+output in place of the payload's refund output. All rules of RSKIP XXX apply unchanged: the code
 check, the rule for deposits that pay two federations, the construction failures, the events, and
 the rule that the verdict is final.
 
-A deposit without a change output is evaluated in the same way, except at the point where RSKIP YYY
+A deposit without a change output is evaluated in the same way, except at the point where RSKIP XXX
 builds the refund:
 
 1. If the destination has code, the peg-in is credited, as for any flagged peg-in.
 2. If the destination has no code and the deposit pays both live federations, it is rejected with
-   reason `6` and is unrefundable with reason `5`, as in RSKIP YYY.
+   reason `6` and is unrefundable with reason `5`, as in RSKIP XXX.
 3. Otherwise it is rejected with reason `6` (`PEGIN_DESTINATION_HAS_NO_CODE`) and is unrefundable
    with the new reason `7` (`NO_CHANGE_OUTPUT`). No release is built. The deposit is marked as
    processed.
 
-As in RSKIP YYY, the deposit is marked as processed even when RSKIP551 is active. The Powpeg node
+As in RSKIP XXX, the deposit is marked as processed even when RSKIP551 is active. The Powpeg node
 must not leave out a flagged deposit because it has no change output: whether it is credited depends
 on the destination's code at registration.
 
@@ -149,26 +149,26 @@ only to a sender-derived address, and inputs that are native segwit or taproot g
 deposit would be lost even when the destination has code, which is the case the payer wanted. Here
 it is lost only when the destination has no code, which is the case in which no refund destination
 exists anyway. The price is that the outcome depends on Rootstock state at registration, not only on
-the transaction. `REQUIRE_CODE` already has that property.
+the transaction. `CODE_REQUIRED` already has that property.
 
 **Why this is not a credit fallback.** An earlier design credited the destination whenever the
 change output could not be resolved, whether or not the destination had code. That contradicted
-`REQUIRE_CODE`. Here a destination without code is never credited.
+`CODE_REQUIRED`. Here a destination without code is never credited.
 
-**Why only with `REQUIRE_CODE`.** Version 3 with the flag clear behaves as version 2, which
-defines no refund for a valid payload. The flag would have no effect.
+**Why only with `CODE_REQUIRED`.** With `CODE_REQUIRED` clear, a peg-in is credited as in version
+1, and no refund is defined for a valid payload. The flag would have no effect.
 
 **Why the change output's value does not matter.** The refund is the deposit returned. Paying it
 to the change output is a choice of destination, not a link between the two amounts.
 
-**Why a separate RSKIP.** The rule can be judged on its own, and RSKIP YYY reserves bit 1 for this
+**Why a separate RSKIP.** The rule can be judged on its own, and RSKIP XXX reserves bit 1 for this
 purpose. Both can activate in the same network upgrade.
 
 ## Backwards compatibility
 
-This change is a hard fork. All full nodes must be updated. It must not activate before RSKIP YYY.
+This change is a hard fork. All full nodes must be updated. It must not activate before RSKIP XXX.
 
-Before activation, flags `03` are a reserved bit set, which RSKIP YYY treats as a parse failure.
+Before activation, flags `03` are a reserved bit set, which RSKIP XXX treats as a parse failure.
 Wallets must not use this flag before the activation height.
 
 ## Security considerations
@@ -181,7 +181,7 @@ Wallets must not use this flag before the activation height.
   the signature of every input commits to all outputs: `SIGHASH_ALL`, or `SIGHASH_DEFAULT` for
   taproot inputs. With `SIGHASH_NONE` or `SIGHASH_SINGLE`, outputs that a signature does not cover
   can be replaced after signing, and the refund redirected. The same is true of the instructions
-  output of RSKIP YYY. A wallet must not set this flag unless every input is signed with such a
+  output of RSKIP XXX. A wallet must not set this flag unless every input is signed with such a
   sighash type.
 - **Who composes the deposit.** A hostile composer can still make the "change" an address it
   controls. The payer can see that output before signing; a substituted refund output in the
@@ -190,7 +190,7 @@ Wallets must not use this flag before the activation height.
   that sets this flag should do so.
 - **Federation changes.** The set of live federations is read at registration, and an output to a
   federation that is no longer live is not removed. A deposit that pays only such a federation is
-  not a peg-in, and one that pays both live federations is unrefundable under RSKIP YYY. A deposit
+  not a peg-in, and one that pays both live federations is unrefundable under RSKIP XXX. A deposit
   that pays the active federation and a federation that is no longer live, for example from a wallet
   that cached the old address, keeps the old output. With change, two outputs remain and the deposit
   has no change output. Without change, the old federation's output is taken as the change output,
@@ -208,7 +208,7 @@ Wallets must not use this flag before the activation height.
 - **Privacy.** A refund to the change output links the refund to the deposit. The same is true of
   most refund outputs written in a payload.
 
-All security considerations of RSKIP YYY apply, including the cases in which the payer receives no
+All security considerations of RSKIP XXX apply, including the cases in which the payer receives no
 refund.
 
 ## Evidence
@@ -224,11 +224,18 @@ refund.
 | The signing wallet checks the change as its own | Not with the official peg-in application (source of 2wp-app): Trezor outputs carry no `address_n`, Ledger receives no `changePath`, PSBT outputs carry no `bip32Derivation`. Other composers were not surveyed |
 | Standard wallets do not show `OP_RETURN` refund data | General knowledge of wallet behaviour. Not surveyed |
 | A wallet can tell before signing whether the deposit has a change output | Follows from the specification: the rule reads only the transaction and the live federations |
-| The five output types are standard | Measured for RSKIP YYY with Bitcoin Core 29.4 |
+| The five output types are standard | Measured for RSKIP XXX with Bitcoin Core 29.4 |
 
 ## Implementation status
 
 No implementation of the rules above exists yet.
+
+An earlier form of the flag is implemented at
+[commit `caab00e26`](https://github.com/jurajpiar/rskj/tree/caab00e2634e8c6adfbc0bd0fce929d37bfad8ad)
+of a fork of rskj, together with earlier forms of the refund output types and of `CODE_REQUIRED`.
+It finds the change output as specified here. It differs in the outcome: when the deposit has no
+single change output, or the refund cannot be built, it credits the destination, which this draft
+never does for a destination without code.
 
 ## Test cases
 
@@ -248,7 +255,7 @@ No implementation of the rules above exists yet.
 - **Powpeg node.** A flagged deposit without a change output, to a destination with code, is
   submitted by the Powpeg node and credited, with RSKIP551 active.
 - **Two federations.** A deposit that pays both live federations and has one other output, to a
-  destination without code, is unrefundable as in RSKIP YYY.
+  destination without code, is unrefundable as in RSKIP XXX.
 - **Before activation.** Flags `03` are a parse failure.
 
 ## Open questions
@@ -264,7 +271,7 @@ No implementation of the rules above exists yet.
    does not. Without it, the wallet displays the refund destination but does not check it. Whether
    common wallets show or decode `RSKT` data was not surveyed.
 3. **Should the flag be allowed when the deposit pays a federation more than once?** The rule
-   above allows several outputs to one federation, as RSKIP YYY does.
+   above allows several outputs to one federation, as RSKIP XXX does.
 4. **Should outputs to recently retired federations also be removed?** That would stop a refund
    from paying a retired federation's script, but it needs a rule for how many past federations
    count. How often a deposit pays a retired federation was not measured.
@@ -330,20 +337,18 @@ share of non-checking composers `u = (g − s) / (z − s)` quoted in "Evidence"
 **Sensitivity.** The probability that this flag loses less per deposit is 0.46 in the central case.
 It is 0.60 with a prior on `u` of median 1% (97th percentile 10%), and 0.24 with median 10%
 (97th percentile 40%). It is 0.33 if `e_f` keeps its prior, and 0.67 if the constant-address habit
-carries over strongly into version 3. With `z` taken from 2023 alone it is 0.62, and with `z` from
+carries over strongly into version 2. With `z` taken from 2023 alone it is 0.62, and with `z` from
 2026 alone it is 0.45. `ρ`, `h`, `d_f`, `u` and `s` are not informed by any measurement.
 
 ## References
 
-[1] RSKIP YYY: Peg-in instructions version 3, credit only if the destination has code (Draft)
+[1] [RSKIP XXX](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, refund
+output types and a code-required flag (Draft)
 
-[2] [RSKIP XXX](https://github.com/jurajpiar/RSKIPs/pull/1): Peg-in instructions version 2, segwit
-and taproot refund addresses (Draft)
-
-[3] [RSKIP181](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP181.md): Peg-in rejection
+[2] [RSKIP181](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP181.md): Peg-in rejection
 events
 
-[4] [BIP174](https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki): Partially Signed
+[3] [BIP174](https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki): Partially Signed
 Bitcoin Transaction format
 
 ### Copyright
