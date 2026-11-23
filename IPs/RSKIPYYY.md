@@ -404,8 +404,9 @@ refund", are the main security considerations. The remaining ones are:
   contracts, which exists today for all Bridge events. Consumers of Bridge events should confirm a
   queued release in Bridge state before they rely on `release_requested`.
 - **powHSM.** No change is expected. The device authorises a release by matching the transaction
-  hash to a `release_requested` log, and it does not interpret outputs (RSKIP XXX). This has not been
-  tested for this proposal.
+  hash to a `release_requested` log, and it does not interpret outputs (RSKIP XXX). A refund was
+  signed by the powHSM emulator with one federator on regtest (see "Evidence"). A physical powHSM and
+  a federation of several members were not tested.
 
 ## Related work: rejection releases in general
 
