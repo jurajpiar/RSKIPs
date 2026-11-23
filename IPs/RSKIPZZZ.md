@@ -38,6 +38,16 @@ with a refund output in the payload.
 
 ## Motivation
 
+A deposit is identified by its transaction identifier, the txid. The txid commits to the outpoints
+and scriptSigs of the deposit's inputs and to its outputs, and it excludes witness data [6]. The
+change output is therefore in the bytes that the txid commits to, for every deposit. The sender is
+not. An input that spends a native segwit or taproot output has an empty scriptSig, and a taproot
+witness for a key-path spend holds a signature and no key. Nothing that the txid commits to
+identifies who paid. The Bridge's sender-derived address exists only for inputs whose scriptSig
+carries the key or the redeem script, which are the P2PKH and P2SH types [7], [5]. For a payer with
+native segwit or taproot inputs, the change output is the one field they control that the txid
+commits to.
+
 A refund output in the payload leaves one theft open. Whoever builds the `OP_RETURN` names the
 refund output of RSKIP XXX. A hostile composer, for example a service that prepares the transaction
 for the payer to sign, can name its own script. It then only has to keep the destination without
@@ -261,6 +271,7 @@ refund.
 | A refund field is often not the payer's today | Measured: 117 of 335 refund fields (34.9% [30.2, 39.9]) carry one address, used with 62 different funding addresses. 4 of 335 match a key that funded the deposit |
 | The signing wallet checks the change as its own | Not with the official peg-in application (source of 2wp-app): Trezor outputs carry no `address_n`, Ledger receives no `changePath`, PSBT outputs carry no `bip32Derivation`. Other composers were not surveyed |
 | Devices display `OP_RETURN` data, and a user can compare a 20-byte or 32-byte program on the device | Not yet tested. A device trial is planned; see SLUICE B9 |
+| The txid commits to outputs and not to witness data | Read from BIP141, section "Transaction ID" [6]. Sender derivation: read from the four `*BtcLockSender` classes of rskj 9.0.4 [5] |
 | The Bridge stores no address of a retired federation | Read from rskj 9.0.4: `FederationStorageProvider` keeps the active and the retiring federation, and `getLastRetiredFederationP2SHScript`. `FederationSupportImpl.setLastRetiredFederationScript` stores the members-only script |
 | A wallet can tell before signing whether the deposit has a change output | Follows from the specification: the rule reads only the transaction and the live federations |
 | The five output types are standard | Measured for RSKIP XXX with Bitcoin Core 29.4 |
@@ -324,8 +335,7 @@ never does for a destination without code.
 5. **Should the Bridge check that the change script has the type of one of the inputs?** It does in
    98.5% of the mainnet deposits surveyed. The reason against the check is that the type of an
    input is defined by the output it spends, which is not part of the deposit transaction. The
-   Bridge could only guess the type of a native segwit or taproot input from the shape of its
-   witness.
+   Bridge could only guess the type of a native segwit or taproot input.
 
 ## Appendix: the loss model
 
@@ -380,9 +390,10 @@ multiplier and with a stronger carry-over.
 
 **Computation.** 200,000 Monte Carlo draws. The posterior of `e_c` uses importance sampling; the
 others are conjugate updates or adjusted priors. Intervals are 94% highest density intervals. The
-proportions in "Evidence" use Jeffreys intervals at 94%. The script that produced these results is
-not published and is in no repository; it is kept with the author's analysis files as
-`change_vs_payload.py`.
+proportions in "Evidence" use Jeffreys intervals at 94%. The script is
+[`research/rskip-zzz/change_vs_payload.py`](https://github.com/jurajpiar/RSKIPs/blob/b3df1e4/research/rskip-zzz/change_vs_payload.py),
+added in commit `b3df1e4` of jurajpiar/RSKIPs with a README and the recorded output. It uses the
+seed 20261118, and a new run reproduced the figures of this appendix.
 
 **Break-even.** The two flags have equal losses when `g = (c_p − c_c) / (1 − c_c)`, which gives the
 share of non-checking composers `u = (g − s) / (z − s)` quoted in "Evidence" and in open question 1.
@@ -408,7 +419,15 @@ events
 Bitcoin Transaction format
 
 [5] rskj VETIVER-9.0.4: `FederationStorageProvider`,
-`FederationSupportImpl.setLastRetiredFederationScript`, `FederationMainNetConstants`
+`FederationSupportImpl.setLastRetiredFederationScript`, `FederationMainNetConstants`;
+`BtcLockSenderProvider` and the four sender classes it tries, `P2pkhBtcLockSender`,
+`P2shP2wpkhBtcLockSender`, `P2shMultisigBtcLockSender` and `P2shP2wshBtcLockSender`
+
+[6] [BIP141](https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki): Segregated witness,
+section "Transaction ID"
+
+[7] [RSKIP170](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP170.md): Peg-in to any
+address
 
 ### Copyright
 
