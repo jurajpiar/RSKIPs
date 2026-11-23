@@ -471,15 +471,16 @@ when the refund cannot be built.
 
 The branch
 [`pegin-instructions-v3-strict-poc`](https://github.com/jurajpiar/rskj/tree/pegin-instructions-v3-strict-poc),
-commit [`e7cdb50d4`](https://github.com/jurajpiar/rskj/commit/e7cdb50d4d6f2f8b78e5ca0e812431557eea52a6),
-implements this draft. The `co.rsk.peg` unit tests pass on it (6,544 tests at that commit;
-the 119 skipped tests are disabled upstream).
-
-The branch is based on rskj master of 9 January 2026, before VETIVER-9.0.4, and does not include
-RSKIP551. It must be rebased before the rules above can be tested with RSKIP551 active.
+commit [`15d5bc397`](https://github.com/jurajpiar/rskj/commit/15d5bc397ba0f33a78c046fa99baad0fda9e94a3),
+implements this draft on VETIVER-9.0.4, including the precedence over RSKIP551. The `co.rsk.peg`
+unit tests pass on it (6,668 tests at that commit; the 119 skipped tests are disabled upstream), as
+does the full `rskj-core` suite.
 
 In the block-execution tests, the Bitcoin side was written directly into the Bridge's state. An
-end-to-end run on regtest then used the branch with a federator node and Bitcoin Core: deposits
+end-to-end run on regtest then used an earlier version of the branch, based on rskj master of
+9 January 2026 and without RSKIP551 (commit
+[`e7cdb50d4`](https://github.com/jurajpiar/rskj/commit/e7cdb50d4d6f2f8b78e5ca0e812431557eea52a6)),
+with a federator node and Bitcoin Core: deposits
 made on Bitcoin, registered by the federator, and refunds signed, broadcast and confirmed. Four
 scenarios passed: P2WPKH and P2TR refunds signed with software keys, a credit to a destination with
 code, and a P2WPKH refund signed by the powHSM 5.6.3 emulator. In each refund the Bridge emitted
