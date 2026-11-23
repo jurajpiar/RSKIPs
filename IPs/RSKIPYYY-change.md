@@ -215,17 +215,14 @@ refund.
 | The single other output has one of the five types | Measured: 599 of 599 [99.6, 100] |
 | The single other output is usually the payer's | Measured indirectly, deposits with a payload: it pays an address that funded the deposit in 67.4% [63.5, 71.1], and has the script type of an input in 98.5% [97.2, 99.3] |
 | A refund field is often not the payer's today | Measured: 117 of 335 refund fields (34.9% [30.2, 39.9]) carry one address, used with 62 different funding addresses. 4 of 335 match a key that funded the deposit |
-| The signing wallet checks the change as its own | Not with the official peg-in application (source of 2wp-app at `5faf627`): Trezor outputs carry no `address_n`, Ledger receives no `changePath`, PSBT outputs carry no `bip32Derivation`. Other composers were not surveyed |
+| The signing wallet checks the change as its own | Not with the official peg-in application (source of 2wp-app): Trezor outputs carry no `address_n`, Ledger receives no `changePath`, PSBT outputs carry no `bip32Derivation`. Other composers were not surveyed |
 | Standard wallets do not show `OP_RETURN` refund data | General knowledge of wallet behaviour. Not surveyed |
 | A wallet can tell before signing whether the deposit has a change output | Follows from the specification: the rule reads only the transaction and the live federations |
 | The five output types are standard | Measured for RSKIP YYY with Bitcoin Core 29.4 |
 
 ## Implementation status
 
-An earlier version of this flag was implemented in the combined branch `pegin-instructions-v23-poc`
-at commit [`caab00e26`](https://github.com/jurajpiar/rskj/commit/caab00e26), with a credit when the
-change output could not be resolved. This RSKIP replaces that design. No implementation of the
-rules above exists yet.
+No implementation of the rules above exists yet.
 
 ## Test cases
 
@@ -304,7 +301,7 @@ by composer, wallet and period. `LU(a, b)` is log-uniform between `a` and `b`.
 | `u` | Share of flagged deposits from composers that do not check the rule | Lognormal, median 3%, 97th percentile 20%, with two weak likelihood ratios (0.6 to 1.0 and 1.0 to 1.5) | None | 2.9% |
 | `s` | Slip rate of a composer that checks the rule | LU(0.02%, 1%) | None | 0.14% |
 
-**Computation.** 200,000 draws with the Python standard library (seed `20261118`). The posterior of
+**Computation.** 200,000 Monte Carlo draws. The posterior of
 `e_c` uses importance sampling; the others are conjugate updates or adjusted priors. Intervals are 94% highest
 density intervals. The proportions in "Evidence" use Jeffreys intervals at 94%.
 
