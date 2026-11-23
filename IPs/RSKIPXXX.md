@@ -351,8 +351,8 @@ that risk.
 output in one transaction, and each federation member signs every input with one key. Whether the
 result is valid depends on the membership of the two federations, on their formats and on the order
 in which members sign [9]. The payer controls none of these. One refund per federation would avoid
-the problem. It needs rules for separate fees, events and partial failure, and it is not proposed
-here.
+the problem. It needs rules for separate fees, events and partial failure, and this RSKIP
+leaves it out.
 
 A narrower rule is possible. The Bridge holds the member keys and the format of both federations,
 so it can decide at registration whether the two have identical keys and the same format, the one
@@ -383,16 +383,10 @@ the code exists, and the deposit is credited. A refund that was already signed w
 deposit a second time. The wait that every release shares reduces this risk, and this RSKIP does
 not shorten it. The wait does not make a deeper reorganisation impossible.
 
-**Why the refund is not sent to the change output.** A second flag was considered, under which the
-refund pays the deposit's single change output and the payload names no refund output [10]. It was
-modelled on 822 mainnet deposits. The payer's expected loss came out about even with a refund
-output: the probability that the flag is better is 0.46. The flag is better than even only if fewer
-than about 3% of flagged deposits come from composers that ignore the rule of a single change
-output. Its other benefit is that the payer's signing device shows the refund destination. That
-benefit depends on the composer declaring the output as change to the device, and the official
-peg-in application does not declare it. A deposit that pays the active federation and a retired
-one, and has no change, would also be refunded to the retired federation's script. This RSKIP
-therefore does not adopt the flag and keeps bit 1 reserved for it.
+**A second flag for a refund to the change output.** A flag under which the refund pays the
+deposit's single change output, and the payload names no refund output, is proposed separately as
+RSKIP ZZZ [10]. It serves payers whose inputs give the Bridge no sender-derived address and whose
+transaction is composed by other software. Bit 1 stays reserved for it.
 
 ## Backwards compatibility
 
@@ -682,9 +676,9 @@ Not Conforming With CALL Semantics;
 [`rejection-release-failures`](https://github.com/jurajpiar/RSKIPs/tree/rejection-release-failures)
 of jurajpiar/RSKIPs
 
-[10] Peg-in version 2, refund to the deposit's change output: the draft and its loss model, kept
-for the record on branch [`rskip-zzz`](https://github.com/jurajpiar/RSKIPs/tree/rskip-zzz) of
-jurajpiar/RSKIPs. It is not proposed.
+[10] RSKIP ZZZ: Peg-in version 2, refund to the deposit's change output (Draft), on branch
+[`rskip-zzz-v2`](https://github.com/jurajpiar/RSKIPs/tree/rskip-zzz-v2) of jurajpiar/RSKIPs.
+Proposed separately.
 
 [11] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2
 
