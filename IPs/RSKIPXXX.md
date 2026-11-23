@@ -184,8 +184,9 @@ version 1. A parsed version-2 payload is then evaluated in this order:
 3. Otherwise the peg-in is rejected with reason `PEGIN_DESTINATION_HAS_NO_CODE`. It is never
    credited, whatever happens next:
    1. If the deposit's outputs pay both live federations, the deposit is unrefundable and no
-      rejection release is built. This can happen only during a federation change. A deposit that
-      pays one federation is not affected, including one that pays only the retiring federation.
+      rejection release is built. The Bridge emits `unrefundable_pegin` (`4` or `5` by format; see
+      "Events"). This can happen only during a federation change. A deposit that pays one
+      federation is not affected, including one that pays only the retiring federation.
    2. Otherwise the Bridge builds a rejection release to the payload's refund output.
    3. If the rejection release cannot be constructed, the deposit is unrefundable. Nothing is
       queued and no refund is attempted later. Construction fails in three situations: the deposit
@@ -274,8 +275,12 @@ happens to its events. The node keeps them. See "Known limitation" in the securi
 
 `unrefundable_pegin` (RSKIP181) gains two reasons:
 
-- `OUTPUTS_SENT_TO_DIFFERENT_FEDS` (`5`): the deposit pays both live federations.
+- `OUTPUTS_SENT_TO_DIFFERENT_FEDS` (`5`): the deposit pays both live federations, and they have the
+  same format.
 - `REFUND_RELEASE_NOT_BUILT` (`6`): the rejection release could not be constructed.
+
+A deposit that pays two live federations of different formats keeps the existing reason
+`OUTPUTS_SENT_TO_DIFFERENT_TYPES_OF_FEDS` (`4`).
 
 The two `unrefundable_pegin` reasons are defined by the draft "Peg-in refunds: report a refund that
 cannot be built" [9] and reused here. Each value is the next free number of its list in rskj 9.0.4,
@@ -286,7 +291,7 @@ The events of a peg-in rejected under step 3 are, in order:
 | Outcome | Events |
 | --- | --- |
 | Refund queued | `rejected_pegin` (`6`), then `release_requested` |
-| Deposit pays both live federations | `rejected_pegin` (`6`), then `unrefundable_pegin` (`5`) |
+| Deposit pays both live federations | `rejected_pegin` (`6`), then `unrefundable_pegin` (`4` or `5` by format) |
 | Refund cannot be constructed | `rejected_pegin` (`6`), then `unrefundable_pegin` (`6`) |
 
 For a queued release, `pegout_transaction_created` follows under its existing activation rule
@@ -441,7 +446,7 @@ records the fact and does not create a claim.
 
 | Case | Condition | Result |
 | --- | --- | --- |
-| Two federations | One transaction pays both live federations | `unrefundable_pegin` (`5`) |
+| Two federations | One transaction pays both live federations | `unrefundable_pegin` (`4` or `5` by format) |
 | Fee too high | After the fee, the refund is below the dust limit | `unrefundable_pegin` (`6`) |
 | Too many inputs for the builder | The unsigned release exceeds the builder's size limit | `unrefundable_pegin` (`6`) |
 | Too large to relay | The signed release exceeds Bitcoin's standard size | Queued and announced; may never confirm |
@@ -594,9 +599,10 @@ What an implementation changes in rskj:
   `release_requested`, no `pegin_btc`, nothing queued, no change to the destination's balance, and
   the deposit marked as processed. Registering again has no effect.
 - **Two federations.** A flagged deposit that pays both live federations, to a destination without
-  code, emits `rejected_pegin` (`6`) and `unrefundable_pegin` (`5`) and queues nothing. Test
-  federations of the same format and of different formats. Test with RSKIP459 active and inactive,
-  and with RSKIP551 active. The same deposit to a destination with code is credited.
+  code, emits `rejected_pegin` (`6`) and `unrefundable_pegin`, and queues nothing. Two federations
+  of the same format give reason `5`. Two federations of different formats give reason `4`. Test
+  with RSKIP459 active and inactive, and with RSKIP551 active. The same deposit to a destination
+  with code is credited.
 - **Parse failure.** A flagged payload without a refund output from a P2PKH input is refunded to
   the sender-derived address. From a P2WPKH input it emits `unrefundable_pegin` with
   `PEGIN_V1_REFUND_ADDRESS_NOT_SET`.
@@ -678,7 +684,7 @@ of jurajpiar/RSKIPs
 
 [10] Peg-in version 2, refund to the deposit's change output: the draft and its loss model, kept
 for the record on branch [`rskip-zzz`](https://github.com/jurajpiar/RSKIPs/tree/rskip-zzz) of
-jurajpiar/RSKIPs. It is not proposed
+jurajpiar/RSKIPs. It is not proposed.
 
 [11] [EIP-1014](https://eips.ethereum.org/EIPS/eip-1014): CREATE2
 
