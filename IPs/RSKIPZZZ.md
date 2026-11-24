@@ -216,6 +216,24 @@ This change is a hard fork. All full nodes must be updated. It must not activate
 Before activation, flags `03` are a reserved bit set, which RSKIP XXX treats as a parse failure.
 Wallets must not use this flag before the activation height.
 
+### Relation to Cardamom
+
+Cardamom is the next Rootstock network upgrade, specified by RSKIP694 [8]. It is in development,
+and the rskj release that the rest of this document describes does not contain it. RSKIP694 lists
+eight proposed RSKIPs. This draft assumes RSKIP378, 455, 559, 643 and 692 are included and
+RSKIP543, 545 and 546 are not, and will be corrected if RSKIP694 records otherwise. The points
+below were read from the RSKIP texts and from the development branch of rskj [9]. Nothing was
+measured.
+
+Only RSKIP455 [10] changes a statement of this draft. Under it, the retiring federation is cleared
+when it holds no funds or when no migration transaction can be built, and never before the
+migration period ends. A second federation is therefore live for at least 10,585 blocks on
+mainnet, with no fixed end. Outputs to the retiring federation are removed for that whole time
+when the Bridge looks for the change output. The case in "Federation changes", an output to a
+federation that is no longer live, begins later than the migration period alone suggests. The
+migration period named in open question 4 is a lower bound under RSKIP455 and no longer marks the
+end of a federation's life.
+
 ## Security considerations
 
 - **The single other output may be a payment.** If a deposit has no change and one payment to a
@@ -428,6 +446,16 @@ section "Transaction ID"
 
 [7] [RSKIP170](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP170.md): Peg-in to any
 address
+
+[8] [RSKIP694](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP694.md): Network Upgrade:
+Cardamom (Draft)
+
+[9] rskj, Cardamom development: branch `master` at
+[commit `aba9c2a9f`](https://github.com/rsksmart/rskj/tree/aba9c2a9f8de0303106016f95adfd02d7fbffd8f),
+read 2026-11-24
+
+[10] [RSKIP455](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP455.md): PowPeg migration to
+multiple outputs (Draft)
 
 ### Copyright
 
