@@ -150,11 +150,11 @@ therefore share one script and one address, and a deposit cannot pay them separa
 reached the combination only by giving the two federations different emergency delays. The
 exception would add a rule to test for a case that the current constants do not produce.
 
-**Why the signed size is not checked.** The builder measures a release before signatures are added,
-so it accepts some releases that are too large for Bitcoin nodes to relay once signed. A check of
-the signed size needs a size estimate and a limit that are fixed in consensus. The relay settings
-of one Bitcoin node must not decide a consensus result. This RSKIP leaves the case as an open
-question.
+**Why the signed size is not checked (see Relation to Cardamom).** The builder measures a release
+before signatures are added, so it accepts some releases that are too large for Bitcoin nodes to
+relay once signed. A check of the signed size needs a size estimate and a limit that are fixed in
+consensus. The relay settings of one Bitcoin node must not decide a consensus result. This RSKIP
+leaves the case as an open question.
 
 ## Backwards compatibility
 
@@ -169,6 +169,38 @@ left unprocessed after it. A deposit that was marked before activation stays mar
 
 A deposit from a P2SH multisig sender that pays two live federations of the same format is
 refunded today and is unrefundable after activation.
+
+### Relation to Cardamom
+
+Cardamom is the next Rootstock network upgrade, specified by RSKIP694 [7]. It is in development,
+and the rskj release that the rest of this document describes does not contain it. RSKIP694 lists
+eight proposed RSKIPs. This draft assumes RSKIP378, 455, 559, 643 and 692 are included and
+RSKIP543, 545 and 546 are not, and will be corrected if RSKIP694 records otherwise. The points
+below were read from the RSKIP texts and from the development branch of rskj [8]. Nothing was
+measured.
+
+- **RSKIP378, release size [9].** The builder estimates the virtual size of every release
+  it constructs, a rejection release included, and refuses a release above 90,000 vbytes. The
+  estimate adds the federation's signatures and redeem script for each input, with every signature
+  at its maximum length. For a federation of the P2SH-P2WSH format this is the check of the signed
+  size that the rationale "Why the signed size is not checked" declines to add, and it answers open
+  question 1. Both passages stay as written for the rskj release this document describes. With
+  RSKIP378 active, a release that exceeds the bound is a construction failure and is reported with
+  reason `6`. The estimate applies the witness discount whatever the federation's format, so for a
+  legacy P2SH federation the question stays open. The input limits under "Evidence" are
+  pre-Cardamom measurements and were not measured again.
+- **RSKIP455, migration [10].** The retiring federation is cleared when it holds no funds
+  or when no migration transaction can be built, and never before the migration period ends. A
+  second federation is therefore live for at least 10,585 blocks on mainnet, with no fixed end.
+  The term "live federation" and the two-federation rule are unchanged.
+- **RSKIP559, confirmation order [11].** Among the queued releases that have waited long
+  enough, the Bridge moves one to signing in each call of `updateCollections`, chosen by the byte
+  order of the serialised transaction. A rejection release, as the term "release" is used here,
+  waits in the same queue and is confirmed in that order.
+- **RSKIP692, failed direct calls [4].** A transaction that calls a precompiled contract directly
+  and fails records no logs. Open question 3, "Events of a failed call", then concerns only a
+  call from a contract. RSKIP692 is not yet in the development branch, so this point comes from
+  its text alone.
 
 ## Security considerations
 
@@ -296,7 +328,8 @@ class, was added after that commit, at
 
 ## Open questions
 
-1. **Should the Bridge check the estimated signed size?** See "Why the signed size is not checked".
+1. **Should the Bridge check the estimated signed size?** See "Why the signed size is not checked",
+   and "Relation to Cardamom" for the check that RSKIP378 adds.
 2. **Should a deposit to two federations get one refund per federation?** That avoids the signing
    problem and needs rules for separate fees, events and partial failure.
 3. **Events of a failed call.** Events that the Bridge emitted before a failed call stay in the
@@ -325,6 +358,22 @@ bitcoinj-thin 0.14.4-rsk-18 `TransactionOutput.getMinNonDustValue`
 
 [6] [RSKIP379](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP379.md): Bridge peg-out and
 migration transactions index
+
+[7] [RSKIP694](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP694.md): Network Upgrade:
+Cardamom (Draft)
+
+[8] rskj, Cardamom development: branch `master` at
+[commit `aba9c2a9f`](https://github.com/rsksmart/rskj/tree/aba9c2a9f8de0303106016f95adfd02d7fbffd8f),
+read 2026-11-24
+
+[9] [RSKIP378](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP378.md): Enforce release
+transaction size limit (Draft)
+
+[10] [RSKIP455](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP455.md): PowPeg migration to
+multiple outputs (Draft)
+
+[11] [RSKIP559](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP559.md): Deterministic
+selection of the next pegout to confirm (Draft)
 
 ### Copyright
 
