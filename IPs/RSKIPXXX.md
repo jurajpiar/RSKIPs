@@ -219,7 +219,8 @@ The Bridge must be able to pay each of the five output scripts in the table abov
 same script as the transaction's change destination. Inputs, signing and the confirmation wait do
 not change.
 
-This RSKIP keeps the builder's existing size checks and adds no check of the signed size. A
+This RSKIP keeps the builder's existing size checks and adds no check of the signed size
+(see Relation to Cardamom). A
 rejection release that is built is therefore not guaranteed to be relayed by Bitcoin nodes: see
 "When the payer receives no refund" in the security considerations.
 
@@ -407,6 +408,43 @@ The new reason values are appended to the existing lists. A consumer of `rejecte
 `unrefundable_pegin` sees an unknown value only for version-2 peg-ins, and must accept such values
 after activation.
 
+### Relation to Cardamom
+
+Cardamom is the next Rootstock network upgrade, specified by RSKIP694 [19]. It is in development,
+and the rskj release that the rest of this document describes does not contain it. RSKIP694 lists
+eight proposed RSKIPs. This draft assumes RSKIP378, 455, 559, 643 and 692 are included and
+RSKIP543, 545 and 546 are not, and will be corrected if RSKIP694 records otherwise. The points
+below were read from the RSKIP texts and from the development branch of rskj [20]. Nothing was
+measured.
+
+- **RSKIP378, release size [21].** The builder estimates the virtual size of every release it
+  constructs, a rejection release included, and refuses a release above 90,000 vbytes. The estimate
+  adds the federation's signatures and redeem script for each input, with every signature at its
+  maximum length. For a federation of the P2SH-P2WSH format, the signed release is therefore no
+  larger than the estimate, and 90,000 vbytes is below Bitcoin's standard limit of 100,000. Under
+  Cardamom the case "Too large to relay" cannot arise for such a federation, and the builder's
+  limit is defined by consensus. The estimate applies the witness discount whatever the
+  federation's format, so it does not bound the release of a legacy P2SH federation in the same
+  way. The thresholds in "When the payer receives no refund" (196 and 2,438 inputs for the builder,
+  116 and 354 for relay) are pre-Cardamom measurements. They were not measured again.
+- **RSKIP455, migration [22].** The retiring federation is cleared when it holds no funds or when
+  no migration transaction can be built, and never before the migration period ends. Two
+  federations are therefore live for at least 10,585 blocks on mainnet, with no fixed end. The rule
+  that refuses a refund for a deposit paying both live federations is unchanged.
+- **RSKIP559, confirmation order [23].** Among the queued releases that have waited long enough,
+  the Bridge moves one to signing in each call of `updateCollections`. It chooses by the byte order
+  of the serialised transaction. Rejection releases wait in the same queue, so a refund is
+  confirmed in that order, and the 4,000-block wait is a minimum.
+- **RSKIP643, registration by hash [24].** The Bridge indexes a release by its outputs that pay a
+  federation. A rejection release pays no federation output and is not indexed. Nothing changes
+  for refunds.
+- **RSKIP692, failed direct calls [8].** A transaction that calls a precompiled contract directly
+  and fails records no logs. The "Known limitation" in the security considerations then applies
+  only to a registration made from a contract, under RSKIP197. RSKIP692 is not yet in the
+  development branch, so this point comes from its text alone.
+- **RSKIP545 is assumed not to be included.** On that assumption, open question 3 has no deadline
+  from this upgrade.
+
 ## Security considerations
 
 The first two subsections hold the main considerations: the conditions under which the flag is
@@ -449,7 +487,8 @@ records the fact and does not create a claim.
 
 **Two federations.** Two federations are live only from the activation of a new federation until
 the funds of the old one are migrated. On mainnet this takes a little more than 10,585 Rootstock
-blocks, about 3.7 days. A wallet that pays one federation address never reaches this case.
+blocks, about 3.7 days (see Relation to Cardamom). A wallet that pays one federation address never
+reaches this case.
 
 **Fee too high.** After the fee, the refund must keep at least the dust limit of its output type.
 The Bridge takes that limit from the bitcoinj library: 3 × 5,000 sat/kB × (output size + 148
@@ -461,14 +500,15 @@ be built from 1,511,463 sat/kB. With a 5-of-9 legacy P2SH federation the thresho
 sat/kB. The fee per kilobyte on mainnet is 8,000 sat at the time of writing, and the federation may
 vote it as high as 5,000,000 sat (0.05 BTC), so both thresholds are inside the permitted range.
 
-**Too many inputs.** Each federation output of the deposit becomes one input of the refund. The
-builder rejects the release at 196 inputs for the legacy format and at 2,438 for the P2SH-P2WSH
-format.
+**Too many inputs (pre-Cardamom figures).** Each federation output of the deposit becomes one input
+of the refund. The builder rejects the release at 196 inputs for the legacy format and at 2,438 for
+the P2SH-P2WSH format.
 
-**Too large to relay.** The builder measures the release before signatures are added. Bitcoin Core
-rejected the signed refund as `tx-size` from 116 legacy inputs and from 354 P2SH-P2WSH inputs. In
-this case the Bridge emits `release_requested` for a transaction that nodes with default policy do
-not relay. Every rejection release behaves this way today, and this RSKIP does not change it.
+**Too large to relay (pre-Cardamom figures).** The builder measures the release before signatures
+are added. Bitcoin Core rejected the signed refund as `tx-size` from 116 legacy inputs and from 354
+P2SH-P2WSH inputs. In this case the Bridge emits `release_requested` for a transaction that nodes
+with default policy do not relay. Every rejection release behaves this way today, and this RSKIP
+does not change it.
 
 **No refund output.** A payload that sets `CODE_REQUIRED` and names no refund output is a parse
 failure under the rule in "Payload", whatever the destination holds. The Bridge then refunds to the
@@ -500,7 +540,8 @@ minimum.
 - **Cost to the federation.** Each refund is a Bitcoin transaction that the federation signs. Its
   fee is paid from the deposit. A protocol whose requests are often not fulfilled creates signing
   work for the federation, and its users pay the fees.
-- **Known limitation: events of a failed registration.** If an internal error occurs after the
+- **Known limitation: events of a failed registration (see Relation to Cardamom).** If an internal
+  error occurs after the
   rejection release is built, for example while the release queue is loaded or saved, the events
   already emitted stay in the receipt: `rejected_pegin`, and possibly `release_requested`. The
   receipt then describes a refund that was not queued. A later registration of the same deposit
@@ -610,7 +651,8 @@ What an implementation changes in rskj:
 - **Internal error after the rejection release is built.** Inject a failure in loading the release
   queue, and separately in saving it. The deposit is not marked as processed and nothing is queued.
   The events that stay in the receipt are recorded and are not required to be absent, until the
-  node's behaviour changes.
+  node's behaviour changes. With RSKIP692 active, the receipt of a direct call is expected to hold
+  no Bridge event; the receipt of a call from a contract is recorded as before.
 - **RSKIP551.** With RSKIP551 active, both unrefundable outcomes of step 3 mark the deposit as
   processed, and registering it again after code is deployed at the destination has no effect.
   Unrefundable version-1 peg-ins and peg-ins without instructions stay unprocessed, as RSKIP551
@@ -701,6 +743,25 @@ the master branch, November 2026
 [17] Ledger Support, [Bitcoin (BTC)](https://support.ledger.com/article/115005195945-zd)
 
 [18] Trezor, [Bitcoin account types: SegWit, Legacy, and Taproot explained](https://trezor.io/learn/supported-assets/bitcoin/bitcoin-account-types-seg-wit-legacy-and-taproot-explained)
+
+[19] [RSKIP694](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP694.md): Network Upgrade:
+Cardamom (Draft)
+
+[20] rskj, Cardamom development: branch `master` at
+[commit `aba9c2a9f`](https://github.com/rsksmart/rskj/tree/aba9c2a9f8de0303106016f95adfd02d7fbffd8f),
+read 2026-11-24
+
+[21] [RSKIP378](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP378.md): Enforce release
+transaction size limit (Draft)
+
+[22] [RSKIP455](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP455.md): PowPeg migration to
+multiple outputs (Draft)
+
+[23] [RSKIP559](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP559.md): Deterministic
+selection of the next pegout to confirm (Draft)
+
+[24] [RSKIP643](https://github.com/rsksmart/RSKIPs/blob/master/IPs/RSKIP643.md): Registering peg-out
+and migration transactions by hash (Draft)
 
 ### Copyright
 
