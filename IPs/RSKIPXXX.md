@@ -25,8 +25,7 @@ destination only if it has code when the peg-in is registered. Otherwise the Bri
 peg-in, never credits it, and attempts a refund to the refund output. If the refund cannot be made,
 the deposit stays with the federation and an event records it.
 
-With the flag clear, a version-2 peg-in is credited exactly as a version-1 peg-in. Existing peg-ins
-are unchanged.
+With the flag clear, a version-2 peg-in is credited exactly as a version-1 peg-in.
 
 ## Terms
 
@@ -69,7 +68,7 @@ should judge it first.
 > was fulfilled before the deposit is registered.
 
 The Bridge checks code presence and nothing else. A protocol that cannot keep code presence equal to
-fulfilment may harm its users with the flag. "What a protocol must guarantee" lists the conditions.
+fulfilment may harm its users with the flag.
 
 ## Specification
 
@@ -137,7 +136,8 @@ for version 1. A parsed version-2 payload is then evaluated in this order:
 
 Any other failure is a fault of the node, such as a failure to read the federation's unspent
 outputs. The call then fails and the deposit is not marked as processed, so it can be registered
-again. The Bridge emits no event for the peg-in before the rejection release is built.
+again. The Bridge emits the events of step 3 only once the outcome is known: a release was built, or
+the deposit was classified as unrefundable. A node fault therefore leaves no event.
 
 In every outcome of step 3 the deposit is marked as processed, whether or not RSKIP459 or RSKIP551
 [3] is active. For these outcomes this RSKIP takes precedence over RSKIP551, which leaves rejected,
@@ -155,9 +155,7 @@ advance whether the destination will have code. It must not leave out a version-
 The rejection release spends every output of the deposit that pays the federation. Its one output
 pays the refund output's script the deposit amount minus the fee, which is the federation's voted
 fee per kilobyte multiplied by the estimated size of the transaction. The federation signs it after
-the wait that every release shares, 4,000 Rootstock blocks on mainnet. The wait is kept because a
-reorganisation of the registering block can replay the registration in a state where the code
-exists.
+the wait that every release shares, 4,000 Rootstock blocks on mainnet.
 
 | Peg-in | Refund destination |
 | --- | --- |
@@ -195,15 +193,14 @@ because the current rules never read a refund output. The flag alone cannot be u
 wallet.
 
 **A type table for the refund output.** Carrying the output script itself would cover future witness
-versions without a new RSKIP. The table is shorter on the wire, and it keeps the check of the script
-form in the parser.
+versions. The table is shorter on the wire, and it keeps the check of the script form in the parser.
 
 **A new version number.** The new fields change the valid lengths, and version-1 parsers accept
 exactly 25 and 46 bytes.
 
 **Why code presence.** RSKIP170 credits an address without code so that funds can be sent before
-deployment. The flag keeps that default and lets a payment opt out. A richer condition, such as a
-method the Bridge calls, would tie consensus code to the interface of one contract.
+deployment. The flag lets a payment opt out. A richer condition, such as a method the Bridge calls,
+would tie consensus code to the interface of one contract.
 
 **Why the refund output is mandatory with the flag.** Native segwit and taproot inputs give no
 sender-derived address, so a flagged peg-in from such inputs without a refund output could never be
@@ -229,7 +226,9 @@ This change is a hard fork. All full nodes must be updated.
 The rules apply to a registration that executes in a Rootstock block at or after the activation
 height, whatever Bitcoin block contains the deposit. Before activation, a version-2 payload is an
 invalid version and follows the parse-failure rule of RSKIP170. Wallets should wait for the
-activation block before they emit version 2.
+activation block before they emit version 2. A deposit refunded before activation is marked as
+processed and is not evaluated again. One left unrefundable stays unprocessed under RSKIP551 and can
+be registered again after activation, when this RSKIP applies.
 
 Consumers of `rejected_pegin` and `unrefundable_pegin` must accept the new reason values, which
 occur only for version-2 peg-ins.
@@ -285,6 +284,8 @@ has more than a few federation outputs, or whose value is close to the minimum.
 - **Events of a failed registration.** If a node fault occurs after the rejection release is built,
   the events already emitted can stay in the receipt of a call made from a contract. Consumers
   should confirm a queued release in Bridge state. RSKIP692 [5] removes the case for direct calls.
+- **Refund to a federation.** A refund output that names a live federation's script returns the
+  deposit to the federation in an output the Bridge does not register. A wallet must not name one.
 - **powHSM.** No change is expected to the device that holds a federation member's signing key. This
   is to be confirmed with its maintainers.
 
@@ -313,19 +314,20 @@ holds the basis of each claim, the changes needed in rskj and the full test list
 - **Unbuilt refund.** A fee above the deposit gives `rejected_pegin` (`6`) and `unrefundable_pegin`
   (`6`), with nothing queued.
 - **Two federations.** A flagged deposit that pays both gives `unrefundable_pegin` (`5`) for one
-  format and (`4`) for two.
+  format and (`4`) for two, and is marked as processed.
 - **RSKIP551.** With it active, registering an unrefundable flagged deposit again after code is
   deployed has no effect.
 - **Node fault.** A failure to read the unspent outputs leaves no event and the deposit unprocessed.
-- **Before activation.** A version-2 payload is an invalid version.
+- **Before activation.** A version-2 payload is an invalid version. A deposit refunded then is not
+  evaluated again. One left unrefundable can be registered again after activation.
 
 ## Open questions
 
-1. **Should a delegated account count as having code?** Under the definition above it would. The
-   draft RSKIP545 [6] stores a delegation marker as the account's code, so the key holder could add
-   or remove "has code" with one transaction. Proposed default: the marker does not count.
+1. **Should a delegated account count as having code?** The draft RSKIP545 [6] stores a delegation
+   marker as the account's code, so the key holder could add or remove "has code" with one
+   transaction. Proposed default: the marker does not count.
 2. **Sequencing with RSKIP690 [4].** It carries most of the library changes for segwit and taproot
-   output scripts. This RSKIP could wait for it or share its network upgrade.
+   output scripts. The two could share a network upgrade.
 
 ## References
 
