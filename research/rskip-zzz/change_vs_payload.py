@@ -71,7 +71,7 @@ def draw_post(u=None, v=None, carry="mid", zkn=RSKT_RECENT, u_med=0.03, u_hi=0.2
     e0 = LU(0.002, 0.05)
     if carry == "mid": e0 = min(0.5, e0 * LU(1.0, 2.5))   # central: the measured habit raises the base rate by a factor 1 to 2.5
     if carry == "strong":
-        c1 = B(CONST_REF[0] + 0.5, CONST_REF[1] - CONST_REF[0] + 0.5)   # share of refund fields with the constant today (v1)
+        c1 = B(CONST_REF[0] / DESIGN + 0.5, (CONST_REF[1] - CONST_REF[0]) / DESIGN + 0.5)   # share of refund fields with the constant today (v1)
         keep = U(0.01, 0.15)                      # P(such a composer still writes a non-payer address when v3 can encode the payer's)
         share = U(0.3, 0.9)                       # share of flagged deposits coming from composers of this kind
         p["c3"] = c1 * keep * share

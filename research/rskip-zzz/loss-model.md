@@ -59,7 +59,7 @@ seed 20261118, and a new run reproduced the figures of this appendix.
 share of non-checking composers `u = (g − s) / (z − s)` quoted in "Evidence" and in open question 1.
 
 **Sensitivity.** The probability that this flag loses less per deposit is 0.46 in the central case.
-It is 0.60 with a prior on `u` of median 1% (97th percentile 10%), and 0.24 with median 10%
+It is 0.59 with a prior on `u` of median 1% (97th percentile 10%), and 0.24 with median 10%
 (97th percentile 40%). It is 0.33 if `e_f` keeps its prior, and 0.67 if the constant-address habit
 carries over strongly into version 2. With `z` taken from 2023 alone it is 0.62, and with `z` from
 2026 alone it is 0.45. `ρ`, `h`, `d_f`, `u` and `s` are not informed by any measurement.
@@ -115,3 +115,8 @@ Python 3 should reproduce it byte for byte.
 
 An earlier pass of the model, without the survey counts, gave 0.74 for the first row of the
 Evidence table and 0.48 for the second. This script replaces it.
+
+On 2026-11-27 the strong carry-over case was corrected to divide the constant-address count
+(117 of 335) by the design effect, as every other survey count is. Its result stays at 0.67. The
+correction shifts the random number stream of the later cases, so some figures moved in the last
+digit: the sensitivity result for a prior on `u` of median 1% went from 0.60 to 0.59.
