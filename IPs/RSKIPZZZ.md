@@ -74,7 +74,8 @@ The valid combinations become:
 | `03`  | 26                   | The deposit's change output             |
 
 Everything else is a parse failure. In particular, flags `02` are a parse failure, and so are flags
-`03` with a refund output in the payload.
+`03` with a refund output in the payload. Without `CODE_REQUIRED` no refund is defined, so the flag
+would have no effect.
 
 ### The change output
 
