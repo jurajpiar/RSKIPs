@@ -94,9 +94,9 @@ form of retry, and the Bridge stores nothing between attempts.
 rskj 9.0.4. The Bridge emits `rejected_pegin` first, as for every rejected peg-in. No event
 signature changes.
 
-RSKIP XXX [1] reuses both reasons, with the same numbers, for peg-ins that set its `CODE_REQUIRED`
-flag. It marks those deposits as processed, because a second registration of a flagged deposit could
-credit the destination.
+RSKIP XXX [1] takes precedence for peg-ins that set its `CODE_REQUIRED` flag. It reuses reasons `4`,
+`5` and `6` for them and marks those deposits as processed, because a second registration of a
+flagged deposit could credit the destination.
 
 ## Rationale
 
@@ -179,6 +179,8 @@ holds the tables, the method and the limits of each measurement.
 - **After the federation change.** The same deposit, registered again after the migration, is
   refunded from the outputs to the active federation only.
 - **One federation.** A rejected deposit that pays only the retiring federation is refunded.
+- **With RSKIP XXX active.** A flagged deposit that pays two live federations is marked as
+  processed, for either format.
 
 ## Open questions
 
