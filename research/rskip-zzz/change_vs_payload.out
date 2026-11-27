@@ -1,0 +1,126 @@
+============================================================================================================== 
+1. PARAMETERS: prior -> posterior (percent, 94% HDI)
+
+z   P(not exactly one other output | composer ignores the rule)
+      prior Beta(2,10): median 14.80 mean 16.66 [94% HDI 0.83, 35.45]
+      post  (payload deposits 2024-26, 149/451, design effect 4): median 31.39 mean 31.48 [94% HDI 23.80, 39.39]
+      alt   (all payload deposits 170/703): median 23.61 mean 23.69 [94% HDI 18.08, 29.64]
+      alt   (2023 only 21/252): median 9.33 mean 9.68 [94% HDI 3.75, 15.96]
+      alt   (2026 only 41/92): median 34.66 mean 34.94 [94% HDI 20.43, 49.80]
+u   share of flags-03 deposits from composers that do not check the rule
+      prior lognormal(median 3%, 97th pct 20%): median 3.00 mean 4.95 [94% HDI 0.09, 14.29]
+      post  (LR 0.6-1.0 single composer; LR 1.0-1.5 silent failure): median 2.86 mean 4.80 [94% HDI 0.08, 14.04]
+s   slip rate of a checking composer: LU(0.02%, 1%), unchanged: median 0.14 mean 0.25 [94% HDI 0.02, 0.79]
+g   P(a flags-03 deposit breaks the rule) = u*z + (1-u)*s
+      prior LU(0.1%, 5%): median 0.71 mean 1.25 [94% HDI 0.10, 3.95]
+      post : median 1.17 mean 1.75 [94% HDI 0.07, 4.69]
+v   share of flagged deposits where the signing wallet verifies change as its own
+      prior Beta(3,2): median 61.41 mean 59.97 [94% HDI 24.40, 95.13]
+      post  Beta(3,4) (0 of 3 signing integrations of the official app, counted as 2 observations): median 42.17 mean 42.84 [94% HDI 11.19, 74.88]
+d_c P(payer notices a substituted change output) = v*U(50,90%) + (1-v)*U(5,35%)
+      prior U(25%, 90%): median 57.53 mean 57.49 [94% HDI 25.01, 86.10]
+      post : median 41.07 mean 41.42 [94% HDI 19.73, 63.49]
+d_f P(payer notices a substituted refund field): U(0, 20%) unchanged: median 10.01 mean 10.01 [94% HDI 0.41, 19.20]
+e_c honest error, the single other output is not the payer's
+      prior LU(0.1%, 3%): median 0.55 mean 0.85 [94% HDI 0.10, 2.45]
+      post  (8/533 type mismatches, design effect 4, flat nuisance; importance sampling, ESS 356,155): median 0.52 mean 0.80 [94% HDI 0.10, 2.31]
+e_f honest error, the refund field names an address the payer cannot use
+      prior LU(0.2%, 5%): median 1.00 mean 1.49 [94% HDI 0.20, 4.13]
+      post  central (prior x LU(1, 2.5)): median 1.57 mean 2.44 [94% HDI 0.20, 6.89]
+      alt   no shift: median 1.00 mean 1.49 [94% HDI 0.20, 4.13]
+      alt   strong carry-over (117/335 x keep U(1,15%) x share U(30,90%) added): median 2.90 mean 3.15 [94% HDI 0.53, 6.06]
+w   P(no sender-derived address | rule broken) (first-draft rule only)
+      prior U(50%, 95%): median 72.47 mean 72.51 [94% HDI 51.35, 93.59]
+      post  (154/170, design effect 4): median 89.33 mean 88.76 [94% HDI 80.06, 96.83]
+rho, h: unchanged (rho U(2%,30%), h LU(0.05%,2%)); the survey does not inform them
+
+============================================================================================================== 
+2. RESULTS
+
+Earlier pass (priors), reproduced:
+   (a) refund reaches the payer | refund due, deposit has change              P(change better) 0.74; advantage median +0.622 pp [-1.813, +4.128], mean +0.882
+   (c) per flagged deposit, as computed then (loss g*w*rho)                   P(change better) 0.48; advantage median -0.006 pp [-0.664, +0.672], mean -0.002
+       same, corrected: adopted rule builds no release, so w = 1              P(change better) 0.43; advantage median -0.031 pp [-0.809, +0.682], mean -0.058
+
+After the survey, central (e_f raised by a factor 1 to 2.5):
+   (a)  refund reaches the payer | refund due, deposit has change             P(change better) 0.81; advantage median +1.074 pp [-2.028, +6.566], mean +1.789
+   (a') refund reaches the payer | refund due (includes deposits without change) P(change better) 0.46; advantage median -0.183 pp [-5.077, +6.645], mean +0.057
+   (b)  per flagged deposit, adopted rule                                     P(change better) 0.46; advantage median -0.019 pp [-0.954, +1.180], mean +0.009
+        per flagged deposit, first-draft rule (parse failure)                 P(change better) 0.11; advantage median -0.833 pp [-4.328, +1.112], mean -1.266
+     median loss per flagged deposit: payload 0.298 pp; change (adopted) 0.337 pp; means 0.463 vs 0.454 pp
+
+After the survey, STRONG e_f carry-over:
+   (a)  refund reaches the payer | refund due, deposit has change             P(change better) 0.94; advantage median +2.316 pp [-0.631, +5.996], mean +2.499
+   (b)  per flagged deposit, adopted rule                                     P(change better) 0.67; advantage median +0.098 pp [-0.695, +1.068], mean +0.122
+
+After the survey, e_f NOT shifted (stays at its prior):
+   (a)  refund reaches the payer | refund due, deposit has change             P(change better) 0.73; advantage median +0.556 pp [-1.701, +4.096], mean +0.846
+   (a') refund reaches the payer | refund due (includes deposits without change) P(change better) 0.33; advantage median -0.687 pp [-4.665, +3.715], mean -0.884
+   (b)  per flagged deposit, adopted rule                                     P(change better) 0.33; advantage median -0.077 pp [-0.910, +0.657], mean -0.140
+
+What moved (a): one-at-a-time, starting from the earlier priors
+   d_c only                                                                   P(change better) 0.72; advantage median +0.532 pp [-1.895, +4.023], mean +0.800
+   e_c only                                                                   P(change better) 0.75; advantage median +0.654 pp [-1.704, +4.133], mean +0.934
+   e_f only                                                                   P(change better) 0.81; advantage median +1.139 pp [-2.067, +6.646], mean +1.823
+What moved (b, adopted rule, w = 1): one-at-a-time
+   g only                                                                     P(change better) 0.34; advantage median -0.071 pp [-0.937, +0.652], mean -0.135
+   e_f only                                                                   P(change better) 0.55; advantage median +0.025 pp [-0.846, +1.140], mean +0.093
+   d_c and e_c only                                                           P(change better) 0.41; advantage median -0.034 pp [-0.818, +0.646], mean -0.063
+
+Break-even (adopted rule): change equals payload when g = (cp - cc)/(1 - cc)
+   g* : median 1.08 mean 1.80 [94% HDI -1.97, 6.74]
+   u* (share of non-checking composers at break-even, 0 if g* < s): median 2.76 mean 5.74 [94% HDI 0.00, 20.05]
+   e_f not shifted: g* median 0.56 mean 0.85 [94% HDI -1.74, 4.13]
+                           u* median 1.08 mean 2.95 [94% HDI 0.00, 11.02]
+   posterior medians: rho=0.1598, h=0.0032, d_f=0.1001, d_c=0.4107, e_f=0.0157, e_c=0.0052, z=0.3139, s=0.0014, u=0.0286, g=0.0117
+
+============================================================================================================== 
+3. SENSITIVITY
+
+3a. (b) per flagged deposit, adopted rule: P(change better) / median advantage in pp.  Rows: u; columns: v
+      u \ v               0.00            0.25            0.50            0.75            1.00
+      0.0 %     0.71 / +0.088   0.73 / +0.103   0.75 / +0.107   0.76 / +0.120   0.77 / +0.131
+      0.2 %     0.69 / +0.079   0.71 / +0.090   0.73 / +0.103   0.74 / +0.108   0.76 / +0.123
+      0.5 %     0.66 / +0.069   0.68 / +0.078   0.70 / +0.089   0.72 / +0.097   0.73 / +0.107
+      1.0 %     0.61 / +0.050   0.63 / +0.056   0.65 / +0.066   0.67 / +0.078   0.69 / +0.086
+      2.0 %     0.53 / +0.015   0.55 / +0.022   0.56 / +0.027   0.58 / +0.037   0.60 / +0.049
+      5.0 %     0.36 / -0.079   0.38 / -0.067   0.39 / -0.060   0.40 / -0.055   0.40 / -0.051
+     10.0 %     0.21 / -0.254   0.21 / -0.245   0.22 / -0.236   0.23 / -0.228   0.23 / -0.222
+     25.0 %     0.02 / -0.906   0.03 / -0.898   0.03 / -0.904   0.03 / -0.886   0.03 / -0.882
+     50.0 %     0.00 / -2.121   0.00 / -2.117   0.00 / -2.093   0.00 / -2.102   0.00 / -2.087
+    100.0 %     0.00 / -4.587   0.00 / -4.565   0.00 / -4.526   0.00 / -4.562   0.00 / -4.522
+
+3b. Same, e_f not shifted
+      0.0 %     0.59 / +0.025   0.62 / +0.033   0.64 / +0.043   0.67 / +0.053   0.68 / +0.060
+      0.2 %     0.56 / +0.017   0.59 / +0.026   0.62 / +0.034   0.64 / +0.043   0.65 / +0.051
+      0.5 %     0.52 / +0.006   0.55 / +0.014   0.58 / +0.024   0.60 / +0.031   0.62 / +0.040
+      1.0 %     0.47 / -0.009   0.49 / -0.002   0.52 / +0.007   0.54 / +0.013   0.56 / +0.020
+      2.0 %     0.38 / -0.041   0.40 / -0.032   0.42 / -0.026   0.44 / -0.019   0.47 / -0.010
+      5.0 %     0.22 / -0.149   0.23 / -0.137   0.25 / -0.130   0.25 / -0.123   0.27 / -0.112
+     10.0 %     0.08 / -0.361   0.08 / -0.346   0.09 / -0.338   0.09 / -0.326   0.10 / -0.321
+     25.0 %     0.00 / -1.079   0.00 / -1.078   0.00 / -1.055   0.00 / -1.043   0.00 / -1.042
+     50.0 %     0.00 / -2.311   0.00 / -2.305   0.00 / -2.318   0.00 / -2.283   0.00 / -2.278
+    100.0 %     0.00 / -4.780   0.00 / -4.786   0.00 / -4.761   0.00 / -4.709   0.00 / -4.716
+
+3c. (a) refund reaches the payer | refund due, deposit has change, by v (u does not enter)
+   e_f off   :   v=0.00: 0.70 / +0.441  v=0.25: 0.72 / +0.519  v=0.50: 0.74 / +0.588  v=0.75: 0.76 / +0.668  v=1.00: 0.77 / +0.731
+   e_f mid   :   v=0.00: 0.79 / +0.962  v=0.25: 0.81 / +1.033  v=0.50: 0.81 / +1.096  v=0.75: 0.83 / +1.177  v=1.00: 0.84 / +1.266
+   e_f strong:   v=0.00: 0.93 / +2.199  v=0.25: 0.93 / +2.260  v=0.50: 0.94 / +2.340  v=0.75: 0.94 / +2.398  v=1.00: 0.95 / +2.471
+
+3d. (a) with a larger hostile share (h 1-10 %), where v matters most
+   e_f off   :   v=0.00: 0.79 / +0.999  v=0.25: 0.90 / +1.713  v=0.50: 0.95 / +2.440  v=0.75: 0.97 / +3.151  v=1.00: 0.98 / +3.824
+   e_f mid   :   v=0.00: 0.85 / +1.527  v=0.25: 0.93 / +2.261  v=0.50: 0.96 / +3.028  v=0.75: 0.98 / +3.787  v=1.00: 0.99 / +4.481
+   e_f strong:   v=0.00: 0.95 / +2.628  v=0.25: 0.98 / +3.316  v=0.50: 0.99 / +4.038  v=0.75: 0.99 / +4.724  v=1.00: 1.00 / +5.407
+
+3e. (b) under other priors on u (median, 97th percentile) and other choices of z
+   u prior median 1%, 97th 10%              e_f central: 0.60 / +0.044    e_f not shifted: 0.47 / -0.011
+   u prior median 3%, 97th 20% (base)       e_f central: 0.46 / -0.021    e_f not shifted: 0.33 / -0.077
+   u prior median 10%, 97th 40%             e_f central: 0.24 / -0.233    e_f not shifted: 0.12 / -0.332
+   z from all payload deposits (24%)        e_f central: 0.51 / +0.007    e_f not shifted: 0.37 / -0.049
+   z from 2023 only (8%)                    e_f central: 0.62 / +0.056    e_f not shifted: 0.49 / -0.002
+   z from 2026 only (45%)                   e_f central: 0.45 / -0.028    e_f not shifted: 0.31 / -0.090
+
+3f. Claim C: 'in a typical flagged deposit the signing wallet checks that the change belongs to it'
+   prior Beta(3,2)            P(v > 0.5): prior 0.69 -> post 0.23 (3 integrations as independent), 0.50 (as one), 0.34 (as two, used); mean v 0.60 -> 0.37 / 0.50 / 0.43
+   sceptical prior Beta(2,2)  P(v > 0.5): prior 0.50 -> post 0.11 (3 integrations as independent), 0.31 (as one), 0.19 (as two, used); mean v 0.50 -> 0.29 / 0.40 / 0.33
+   confident prior Beta(8,2)  P(v > 0.5): prior 0.98 -> post 0.80 (3 integrations as independent), 0.95 (as one), 0.88 (as two, used); mean v 0.80 -> 0.61 / 0.73 / 0.67
