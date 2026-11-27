@@ -27,31 +27,33 @@ exactly one such output, it has no refund destination. It is then credited if th
 code, and unrefundable if it has none.
 
 The flag serves a payer whose deposit is composed by other software and signed on a device that
-shows the transaction's outputs. It is optional, and no reduction in the payer's expected loss was
-measured.
+checks or shows the transaction's outputs. It is optional, and no reduction in the payer's expected
+loss was measured.
 
 ## Motivation
 
-Whoever builds the `OP_RETURN` names the refund output of RSKIP XXX. A hostile composer, for example
-a service that prepares the transaction for the payer to sign, can name its own script and leave the
-payer's request unfulfilled. The Bridge then rejects the peg-in and pays the refund to the composer.
-The payer is unlikely to notice before signing, because the refund output is a field inside
-`OP_RETURN` data. Two signing devices tested on emulators print that data as unlabelled hexadecimal.
+Whoever builds the `OP_RETURN` names the refund output of RSKIP XXX. A hostile composer can name its
+own script and leave the payer's request unfulfilled. The Bridge then rejects the peg-in and pays
+the refund to the composer. The payer is unlikely to notice before signing, because the refund
+output is a field inside `OP_RETURN` data. Two signing devices tested on emulators print that data
+as unlabelled hexadecimal.
 
-This flag moves the refund destination into an ordinary output of the transaction. A wallet that
-shows outputs shows the change output, and with `SIGHASH_ALL` the payer signs all outputs together.
-A wallet checks that the output is its own only if the composer declares it as change. The official
-peg-in application does not.
+This flag moves the refund destination into an ordinary output of the transaction, which the payer
+signs with the others under `SIGHASH_ALL`. A signing device treats that output in one of two ways.
+If the composer declares it as the payer's change, the device checks it against the payer's keys;
+the two devices tested on emulators then do not show it. Otherwise the device shows it as a
+recipient with its address. A substituted refund destination cannot pass as declared change, so it
+appears as an extra recipient. The official peg-in application does not declare change.
 
 In 67.4% of surveyed mainnet deposits with a payload and one other output, that output pays an
-address that also funded an input. Of the refund fields in use today, 1% match a key that funded the
-deposit.
+address that also funded an input.
 
 **The general population gains no measured reduction in loss.** A model built on that survey puts
 the payer's loss with this flag about even with a refund output in the payload: an advantage of
 −0.02 percentage points, with a 94% interval of −0.95 to +1.18. The flag comes out ahead only if
 fewer than about 3% of flagged deposits come from composers that do not check the change-output
-rule. The case for the flag is that the payer's device shows the refund destination.
+rule. The case for the flag is that the payer's device checks a declared change output as the
+payer's own and shows any other output as a recipient.
 
 ## Specification
 
@@ -117,17 +119,19 @@ These requirements bind the software that composes a deposit. They are not conse
 Bridge cannot check the first or the third. A composer sets `REFUND_TO_CHANGE` only when:
 
 1. it declares the change output to the signing device as the payer's own, in the form the device
-   accepts (`address_n` for Trezor, `changePath` for Ledger, `bip32Derivation` in a PSBT), so that
-   the device checks the output against the payer's keys;
-2. the transaction has exactly one output that pays neither a federation nor an `OP_RETURN`, and
-   that output is the payer's change;
+   accepts: `address_n` for Trezor, `changePath` for Ledger, or in a PSBT the output's derivation
+   record (`PSBT_OUT_BIP32_DERIVATION`, or `PSBT_OUT_TAP_BIP32_DERIVATION` for a taproot output,
+   BIP371 [5]), so that the device checks the output against the payer's keys;
+2. the transaction has exactly one output that pays neither a federation nor an `OP_RETURN`, that
+   output is the payer's change, and its script is one of the five types of RSKIP XXX;
 3. every input is signed with `SIGHASH_ALL`, or `SIGHASH_DEFAULT` for taproot inputs.
 
 ## Rationale
 
 **Why the change output.** Neither form proves that the payer owns the refund destination. A
 substituted refund output in the payload is invisible on a standard wallet. A substituted change
-output appears as an address the payer does not recognise.
+output cannot pass as declared change, so the device shows it as a recipient the payer does not
+recognise.
 
 **Why a missing change output does not make the payload invalid.** An invalid payload is refunded
 only to a sender-derived address, which native segwit and taproot inputs lack. Such a deposit would
@@ -136,9 +140,6 @@ no code.
 
 **Why the destination is not credited instead.** That would contradict `CODE_REQUIRED`: a
 destination without code is never credited.
-
-**Why only with `CODE_REQUIRED`.** Without it no refund is defined, and the flag would have no
-effect.
 
 **Why a separate RSKIP.** The benefit is confined to one class of payer. The flag can be judged,
 rejected or activated later without any effect on RSKIP XXX.
@@ -181,7 +182,7 @@ No implementation of these rules exists. An earlier form of the flag, at [commit
 fork of rskj VETIVER-9.0.4, finds the change output as specified and credits the destination where
 this draft does not. Measured: a survey of 822 mainnet peg-ins, and the screens of two signing
 devices on emulators. The loss figures are modelled from the survey. The
-[companion folder](https://github.com/jurajpiar/RSKIPs/tree/155fbf59dbd19ef73d5411d0aa188467072cd201/research/rskip-zzz)
+[companion folder](https://github.com/jurajpiar/RSKIPs/tree/c79a0dfc20aa1b75f684874254bdee6b1c8b43d2/research/rskip-zzz)
 holds the survey figures, the model with its script, and the device trial.
 
 ## Test cases
@@ -223,6 +224,9 @@ multiple outputs (Draft)
 [4] [rskj VETIVER-9.0.4](https://github.com/rsksmart/rskj/tree/VETIVER-9.0.4):
 `FederationStorageProvider`, `FederationSupportImpl.setLastRetiredFederationScript`,
 `BtcLockSenderProvider`
+
+[5] [BIP371](https://github.com/bitcoin/bips/blob/master/bip-0371.mediawiki): Taproot Fields for
+PSBT
 
 ### Copyright
 
