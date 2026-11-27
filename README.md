@@ -291,6 +291,7 @@ You can find an easily browseable version of this information [here](https://ips
 | JIO      | Jose Ignacio Orlicki      |                                        |
 | JD       | Jose Dahlquist            | jose@rootstocklabs.com                 |
 | JL       | Julian Len                | julian@rootstocklabs.com               |
+| JP       | Juraj Piar                | juraj@rootstocklabs.com                |
 | JT       | Jeremy Then               | jeremy.then@rootstocklabs.com          |
 | JZ       | Julia Zack                | julia.zack@rootstocklabs.com           |
 | KI       | Kelvin Isievwore          |                                        |
