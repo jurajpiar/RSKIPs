@@ -69,8 +69,11 @@ P2SH-P2WSH. A rejected peg-in whose outputs pay both live federations is not ref
 builds no rejection release for it and emits `unrefundable_pegin`:
 
 - with the existing reason `OUTPUTS_SENT_TO_DIFFERENT_TYPES_OF_FEDS` (`4`) when the two federations
-  have different formats, which rskj 9.0.4 already does;
+  have different formats;
 - with the new reason `OUTPUTS_SENT_TO_DIFFERENT_FEDS` (`5`) when they have the same format.
+
+In rskj 9.0.4 this check applies only to a peg-in without instructions from a multisig sender. This
+RSKIP applies it to every rejected peg-in that has a refund address.
 
 A deposit that pays one federation is not affected, including one that pays only the retiring
 federation.
@@ -118,13 +121,16 @@ that cannot occur.
 This change is a hard fork. All full nodes must be updated.
 
 It applies to a registration that executes in a Rootstock block at or after the activation height.
-Peg-ins that are credited, and rejected peg-ins whose refund is built, keep their outcomes and
-events. A consumer of `unrefundable_pegin` must accept the two new reason values.
+Peg-ins that are credited keep their outcomes and events. So do rejected peg-ins whose refund is
+built, unless the deposit pays both live federations. A consumer of `unrefundable_pegin` must accept
+the two new reason values.
 
 A deposit whose rejection release cannot be built is marked as processed before activation and left
 unprocessed after it. A deposit that was marked before activation stays marked. A deposit from a
 P2SH multisig sender that pays two live federations of the same format is refunded today and is
-unrefundable after activation.
+unrefundable after activation. A rejected peg-in that pays two live federations of different formats
+and is refunded today, such as a payload that fails to parse from a sender with a derived address,
+is unrefundable after activation.
 
 This document describes rskj 9.0.4. Cardamom, the next network upgrade (RSKIP694 [5]), changes two
 statements:
@@ -157,10 +163,12 @@ statements:
 ## Implementation status
 
 No implementation of this RSKIP exists. The figures and outcomes it cites were measured on rskj
-VETIVER-9.0.4 with experiment tests in the proof of concept for RSKIP XXX, at [commit
-`15d5bc397`](https://github.com/jurajpiar/rskj/tree/15d5bc397ba0f33a78c046fa99baad0fda9e94a3) of a
-fork: the fee and size thresholds, the signing results for two federations, and a registration after
-a federation change. The
+VETIVER-9.0.4 with experiment tests in the proof of concept for RSKIP XXX, in a fork of rskj. The
+fee and size thresholds and the signing results for two federations are at
+[commit `15d5bc397`](https://github.com/jurajpiar/rskj/tree/15d5bc397ba0f33a78c046fa99baad0fda9e94a3).
+The registration after a federation change is at
+[commit `7c4618d95`](https://github.com/jurajpiar/rskj/commit/7c4618d950a8118de050fd48f0ff74f8f4a812de).
+The
 [companion folder](https://github.com/jurajpiar/RSKIPs/tree/155fbf59dbd19ef73d5411d0aa188467072cd201/research/rskip-yyy)
 holds the tables, the method and the limits of each measurement.
 
@@ -176,6 +184,8 @@ holds the tables, the method and the limits of each measurement.
   `unrefundable_pegin`.
 - **Two federations.** A deposit from a P2SH multisig sender that pays both emits
   `unrefundable_pegin` (`5`) for one format and (`4`) for two, and stays unprocessed.
+- **Parse failure, two formats.** A payload that fails to parse, from a sender with a derived
+  address, paying two live federations of different formats, emits `unrefundable_pegin` (`4`).
 - **After the federation change.** The same deposit, registered again after the migration, is
   refunded from the outputs to the active federation only.
 - **One federation.** A rejected deposit that pays only the retiring federation is refunded.
