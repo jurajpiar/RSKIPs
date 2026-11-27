@@ -155,7 +155,9 @@ advance whether the destination will have code. It must not leave out a version-
 The rejection release spends every output of the deposit that pays the federation. Its one output
 pays the refund output's script the deposit amount minus the fee, which is the federation's voted
 fee per kilobyte multiplied by the estimated size of the transaction. The federation signs it after
-the wait that every release shares, 4,000 Rootstock blocks on mainnet.
+the wait that every release shares, 4,000 Rootstock blocks on mainnet. The wait is kept because a
+reorganisation of the registering block can replay the registration in a state where the code
+exists.
 
 | Peg-in | Refund destination |
 | --- | --- |
